@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\RoleUserEnum;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CreateUserRequest;
 use App\Http\Requests\Admin\UpdateUserInfo;
 use App\Http\Requests\Admin\UpdateUserStatus;
 use App\Http\Requests\Admin\UserFilterRequest;
-use App\Http\Requests\CreateUserRequest;
 use App\Http\Services\Admin\UserService;
 use Illuminate\Http\Request;
 use App\Models\User;
@@ -39,7 +39,7 @@ class UserController extends Controller
     {
         $attr = $request->validated();
         $this->userService->createUser($attr);
-        return redirect()->route("admin.users.store")->with('success', 'User created successfully.');
+        return redirect()->route("admin.users.index")->with('success', 'User created successfully.');
     }
 
     public function show(User $user)
@@ -48,14 +48,7 @@ class UserController extends Controller
         return view("admin.police.index", compact('user'));
     }
 
-    
-    public function updateStatus(UpdateUserStatus $request, User $user)
-    {
-        $attr = $request->validated();
-        $user =  $this->userService->UpdateStatusAccount($user, $attr);
-        return redirect()->route("admin.users.updateStatus")
-            ->with('success', 'user status updated successfully.');
-    }
+
 
    public function edit(User $user)
 {
@@ -65,13 +58,13 @@ class UserController extends Controller
     public function saveupdate(UpdateUserInfo $request , User $user){
         $attr = $request->validated();
         $user = $this->userService->updateUser($user , $attr);
-        return redirect()->route("admin.users.save");
+        return redirect()->route(route: "admin.users.index")->with("success", "User updated successfully");
     }
 
     public function destroy(User $user)
     {
         $user = $this->userService->deleteUser($user);
-        return redirect()->route("admin.users.delete");
+        return redirect()->route("admin.users.index")->with("success", "User deleted successfully");
     }
 
     public function toggleStatus( User $user)

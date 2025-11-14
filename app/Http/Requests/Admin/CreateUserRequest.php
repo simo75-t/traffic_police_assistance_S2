@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Requests;
-
+namespace App\Http\Requests\Admin;
 use App\Enums\RoleUserEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class CreateUserRequest extends FormRequest
 {
@@ -28,9 +28,10 @@ class CreateUserRequest extends FormRequest
                 'name' => ['string' , 'required'],
                 'email' => ["email" , "string" ,"required" , "unique:users,email"],
                 'password' => ["required" , "string" , "min:6"],
-                'role' => ["string" , "in:policeOfficer, policeManager"],
-                'is_active' => ['nullable' , 'in:active , disactive'],
-                "phone" => ["string" ,"nullable"],
+                'role' => ["string" , "required" , Rule::in([ RoleUserEnum::Police_manager,
+                RoleUserEnum::Police_officer ]) ],
+                'is_active' => ['nullable' ],
+                "phone" => ["string" ,"nullable" , 'digits:10'],
             
         ];
     }

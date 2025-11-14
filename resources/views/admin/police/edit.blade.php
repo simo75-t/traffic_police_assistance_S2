@@ -6,6 +6,13 @@
 <div class="container mt-5" style="max-width: 600px;">
     <h3 class="mb-4 text-center">Edit User</h3>
 
+    {{-- زر الرجوع --}}
+    <div class="mb-3">
+        <a href="{{ route('admin.users.index') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left-circle"></i> Back to Users
+        </a>
+    </div>
+
     {{-- عرض الأخطاء --}}
     @if ($errors->any())
         <div class="alert alert-danger">
@@ -33,15 +40,19 @@
 
         <div class="mb-3">
             <label class="form-label">Phone</label>
-            <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}">
+            <input type="text" name="phone" class="form-control" value="{{ old('phone', $user->phone) }}" placeholder="9 digits">
         </div>
 
-        <div class="form-check mb-3">
-            <input type="hidden" name="is_active" value="disactive"> {{-- قيمة افتراضية إذا لم يتم التحديد --}}
-            <input type="checkbox" class="form-check-input" name="is_active" value="active" id="is_active"
-                   {{ old('is_active', $user->is_active ? 'active' : '') == 'active' ? 'checked' : '' }}>
-            <label class="form-check-label" for="is_active">Active</label>
-        </div>
+   
+
+               {{-- Status --}}
+                    <div class="col-md-6">
+                        <label class="form-label">Account Status</label>
+                        <select name="is_active" class="form-select form-select-lg" required>
+                            <option value="1" {{ old('is_active') == '1' ? 'selected' : '' }}>Active</option>
+                            <option value="0" {{ old('is_active') == '0' ? 'selected' : '' }}>Inactive</option>
+                        </select>
+                    </div>
 
         <button type="submit" class="btn btn-primary w-100">Save Changes</button>
     </form>

@@ -26,9 +26,9 @@ class UpdateUserInfo extends FormRequest
     {
         return [
                 'name' => ['string'],
-                'email' => ["email" , "string" , "unique:users,email"],
-                'is_active' => ['nullable' , 'in:active , disactive'] ,
-                "phone" => ["string" ,"nullable"],
+                'email' => ["email" , "string" ],
+                'is_active' => ['nullable'] ,
+                "phone" => ["string" ,"nullable" ,'digits:10' ],
         ];
     }
 }

@@ -26,7 +26,7 @@ Route::prefix("Users")->name("users")->group(function(){
     Route::post("/store" , [UserController::class , "store"])->name(".store");
     Route::get("/{user}" , [UserController::class , "show"])->name(".show");
     Route::get("edit/{user}" , [UserController::class , "edit"] )->name('.edit');
-    Route::post("edit/{user}" , [UserController::class , "saveupdate"] )->name('.save');
+    Route::patch("/update/{user}" , [UserController::class , "saveupdate"] )->name('.saveupdate');
     Route::post("/{user}" , [UserController::class , "updateStatus"])->name(".updateStatus");
     Route::delete("/{user}" ,[ UserController::class , "destroy"])->name(".delete");
     Route::patch("{user}/toggle" , [UserController::class , 'toggleStatus'])->name('.toggle');
