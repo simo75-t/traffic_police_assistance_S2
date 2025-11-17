@@ -27,7 +27,8 @@ class AuthController extends Controller
 
     public function profile()
     {
-        return $this->success(new ProfileResource(Auth::user()));
+        $profile = $this->authService->profile() ;
+        return $this->success(new ProfileResource($profile));
     }
     
     public function logout()

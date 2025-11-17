@@ -52,4 +52,8 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function violation(){
+        return $this->hasMany(Violation::class);
+    }
 }
