@@ -27,7 +27,7 @@ class CreateViolationType extends FormRequest
         return [
             'name' => ['required' , 'string' , 'unique:violation_types,name'],
             'description' => ['string' , 'nullable'], 
-            'fine_amount' => ['decimal:1,100000' , 'required'],
+            'fine_amount' => [ 'required'],
         ];
     }
 }

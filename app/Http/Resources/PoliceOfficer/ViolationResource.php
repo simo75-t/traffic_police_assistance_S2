@@ -5,6 +5,7 @@ namespace App\Http\Resources\PoliceOfficer;
 use App\Http\Resources\ProfileResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Carbon\Carbon;
 
 class ViolationResource extends JsonResource
 {
@@ -29,15 +30,16 @@ class ViolationResource extends JsonResource
             'fine_amount' => (float) $this->fine_amount,
             'vehicle_snapshot' => $this->vehicle_snapshot,
 
-            'occurred_at' => $this->occurred_at ? $this->occurred_at->toDateTimeString() : null,
+            
+
+            'occurred_at' => Carbon::parse($this->occurred_at)->toDateTimeString(),
+
             'created_at' => $this->created_at->toDateTimeString(),
             'updated_at' => $this->updated_at->toDateTimeString(),
         ];
     }
 
-    /**
-     * إذا كنت تريد ترسل بيانات ميتا إضافية
-     */
+
     public function with(Request $request): array
     {
         return [

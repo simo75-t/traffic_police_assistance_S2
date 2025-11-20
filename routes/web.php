@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\ViolationTypeController;
 use App\Http\Services\Admin\UserService;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,15 @@ Route::prefix("Users")->name("users")->group(function(){
     Route::patch("{user}/toggle" , [UserController::class , 'toggleStatus'])->name('.toggle');
 });
 
+
+ // Violation Types
+    Route::prefix("violation-types")->name("violationTypes.")->group(function () {
+
+        Route::get("/", [ViolationTypeController::class, "index"])->name("index");
+        Route::get("/create", [ViolationTypeController::class, "create"])->name("create");
+        Route::post("/store", [ViolationTypeController::class, "store"])->name("store");
+        
+    });
 });
 
 

@@ -8,7 +8,6 @@ use App\Http\Requests\PoliceOfficer\CreateViolationRequest;
 use App\Http\Resources\PoliceOfficer\ViolationResource;
 use App\Http\Services\PoliceOfficer\ViolationService;
 
-
 class ViolationController {
 
 
@@ -24,7 +23,11 @@ class ViolationController {
     public function create(CreateViolationRequest $request){
         $atrr =  $request->validated();
         $violation = $this->violationService->createViolation($atrr);
-        return $violation->success(new ViolationResource($violation));
+        return response()->json([
+        'status' => 'success',
+        'message' => 'violation created successfully',
+        'data' => new ViolationResource($violation),
+    ]);
 
     }
 }

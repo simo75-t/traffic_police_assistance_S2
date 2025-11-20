@@ -21,13 +21,13 @@ class ViolationTypeController extends Controller
     }
 
     public function create(){
-        return view('admin.dashboard');
+        return view('admin.violationType.create');
     }
 
     public function store(CreateViolationType $request ){
         $attr = $request->validated();
         $this->violationType->createViolationType($attr);
-        return redirect()->route("admin.violationTypes.index")->with('success', 'violation type created successfully.');
+        return redirect()->route('admin.violationTypes.index')->with('success', 'violation type created successfully.');
     }
 
 

@@ -11,7 +11,7 @@ class ViolationLocation extends Model
 {
       use  HasFactory, Notifiable , HasApiTokens  ;
 
-            protected $fillable = [ 'address' , 'street_name' , 'land_mark' ];
+            protected $fillable = [ 'address' , 'steet_name' , 'land_mark' ];
 
 
        public function violations(){

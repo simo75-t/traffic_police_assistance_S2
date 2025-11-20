@@ -8,14 +8,36 @@
 
         <!-- Navigation Menu -->
         <nav class="nav flex-column flex-grow-1 mt-2">
+
+            <!-- Dashboard -->
             <a class="nav-link mb-2 {{ request()->routeIs('admin.home') ? 'active' : '' }}" 
                href="{{ route('admin.home') }}">
                 <i class="bi bi-house-door me-2"></i> Dashboard
             </a>
-            <a class="nav-link mb-2 {{ request()->routeIs('admin.users.*') ? 'active' : '' }}" 
+
+            <!-- Police Accounts -->
+            <a class="nav-link mb-2 {{ request()->routeIs('admin.users*') ? 'active' : '' }}" 
                href="{{ route('admin.users.index') }}">
-                <i class="bi bi-file-text me-2"></i> Police Accounts
+                <i class="bi bi-person-badge me-2"></i> Police Accounts
             </a>
+
+            <!-- Violations Section Title -->
+            <div class="nav-section-title text-white-50 mt-3 mb-1 ms-1" style="font-size: 0.75rem;">
+                Violations Management
+            </div>
+
+            <!-- Violation Types List -->
+            <a class="nav-link mb-2 {{ request()->routeIs('admin.violationTypes.index') ? 'active' : '' }}"
+               href="{{ route('admin.violationTypes.index') }}">
+                <i class="bi bi-exclamation-triangle me-2"></i> Violation Types
+            </a>
+
+            <!-- Create New Violation Type -->
+            <a class="nav-link mb-2 {{ request()->routeIs('admin.violationTypes.create') ? 'active' : '' }}"
+               href="{{ route('admin.violationTypes.create') }}">
+                <i class="bi bi-plus-circle me-2"></i> Add New Violation Type
+            </a>
+
         </nav>
 
         <!-- Logout Button -->
@@ -27,13 +49,14 @@
                 </button>
             </form>
         </div>
+
     </div>
 </aside>
 
 <style>
 /* Sidebar Colors & Layout */
 .bg-dashboard {
-    background: linear-gradient(180deg, #4e73df, #2e59d9); /* أزرق متدرج */
+    background: linear-gradient(180deg, #4e73df, #2e59d9);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -41,9 +64,10 @@
     padding-top: 1rem;
 }
 
-/* Top Title */
-.text-center h5 {
-    font-size: 1.1rem;
+/* Navigation Section Title */
+.nav-section-title {
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 
 /* Navigation Links */
@@ -64,7 +88,7 @@
     color: #fff;
 }
 .nav-link.active {
-    background: #1b4b91; /* لون أغمق للرابط النشط */
+    background: #1b4b91;
     color: #fff;
     font-weight: bold;
 }
@@ -81,11 +105,5 @@
 .btn-logout:hover {
     background-color: #e2e6ea;
     color: #2e59d9;
-}
-
-/* Spacing between nav items */
-.nav {
-    flex-direction: column;
-    gap: 0.5rem;
 }
 </style>

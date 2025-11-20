@@ -23,17 +23,25 @@ class CreateViolationRequest extends FormRequest
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
-    {
-        return [
-             
-            'vehicle_plate'            => ['required'],
-            'violation_type_id'     => ['required', 'exists:violation_types,id'],
-            'violation_location_id' => ['required', 'exists:violation_locations,id'],
-            'description'           => ['nullable', 'string', 'max:2000'],
-            'fine_amount'           => ['required', 'numeric', 'min:0'],
-            'vehicle_snapshot'      => ['required', 'array'],   
-            'occurred_at'           => ['required', 'date'],
-        
-        ];
-    }
+{
+    return [
+        // Vehicle info
+        'vehicle_plate' => ['required', 'string', 'max:50'],
+        'vehicle_color' => ['nullable', 'string', 'max:50'],
+        'vehicle_model' => ['nullable', 'string', 'max:100'],
+        'vehicle_brand' => ['nullable', 'string', 'max:100'],
+
+        // Location info
+        'steet_name'   => ['required', 'string', 'max:255'],
+        'address'       => [ 'string', 'max:255'],
+        'land_mark'     => ['nullable', 'string', 'max:255'],
+       
+        // Violation info
+        'violation_type_id' => ['required', 'exists:violation_types,id'],
+        'description'      => ['nullable', 'string', 'max:2000'],
+        'vehicle_snapshot' => ['nullable', 'array'],
+        'occurred_at'      => ['required', 'date'],
+    ];
+}
+
 }
