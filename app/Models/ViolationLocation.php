@@ -9,13 +9,18 @@ use Laravel\Passport\HasApiTokens;
 
 class ViolationLocation extends Model
 {
-      use  HasFactory, Notifiable , HasApiTokens  ;
+     use  HasFactory, Notifiable, HasApiTokens;
 
-            protected $fillable = [ 'address' , 'steet_name' , 'land_mark' ];
+     protected $fillable = ['street_name', 'landmark' , "city_id"];
 
 
-       public function violations(){
-            return $this->hasMany(Violation::class , 'Violation_id');
-       }
+     public function violations()
+     {
+          return $this->hasMany(Violation::class, 'Violation_id');
+     }
 
+     public function city()
+     {
+          return $this->belongsTo(City::class);
+     }
 }

@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers\PoliceOfficer;
 
-use App\Http\Controllers;
+use App\Http\Controllers\Controller ;
 
 use App\Http\Requests\PoliceOfficer\CreateViolationRequest;
 use App\Http\Resources\PoliceOfficer\ViolationResource;
 use App\Http\Services\PoliceOfficer\ViolationService;
 
-class ViolationController {
-
+class ViolationController extends Controller
+{
 
     protected $violationService ;
 
@@ -17,17 +17,15 @@ class ViolationController {
         $this->violationService = $violationService;
     }
     public function index(){
-        return $this->violationService->getViolationList();
+        $violations =  $this->violationService->getViolationList();
+      return $this->success(
+       ViolationResource::collection($violations) );
     }
 
     public function create(CreateViolationRequest $request){
         $atrr =  $request->validated();
         $violation = $this->violationService->createViolation($atrr);
-        return response()->json([
-        'status' => 'success',
-        'message' => 'violation created successfully',
-        'data' => new ViolationResource($violation),
-    ]);
+        return $this->success(new ViolationResource($violation)) ;
 
     }
 }

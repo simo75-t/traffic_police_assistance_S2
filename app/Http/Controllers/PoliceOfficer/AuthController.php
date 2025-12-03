@@ -19,7 +19,8 @@ class AuthController extends Controller
     }
 
     public function login(LoginRequest $request)
-    {
+    {        
+
         $atrr = $request->validated();
         $user = $this->authService->loginApi($atrr, RoleUserEnum::Police_officer);
         return $this->success(new ProfileResource($user));
@@ -28,7 +29,7 @@ class AuthController extends Controller
     public function profile()
     {
         $profile = $this->authService->profile() ;
-        return $this->success(new ProfileResource($profile));
+        return $this->success( new ProfileResource($profile));
     }
     
     public function logout()
@@ -39,3 +40,4 @@ class AuthController extends Controller
 }
 
 
+   

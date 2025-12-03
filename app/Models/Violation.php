@@ -33,10 +33,11 @@ public function violationLocation()
     return $this->belongsTo(ViolationLocation::class);
 }
 
-public function type()
+public function violationType()
 {
-    return $this->belongsTo(ViolationType::class, 'violation_type_id');
+    return $this->belongsTo(ViolationType::class);
 }
+
 
 public function reporter()
 {
@@ -46,5 +47,9 @@ public function reporter()
 public function appeal(){
     return $this->belongsTo(Appeal::class);
 }
+
+
+
+
 
 }
