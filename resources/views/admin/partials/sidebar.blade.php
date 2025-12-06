@@ -32,11 +32,7 @@
                 <i class="bi bi-exclamation-triangle me-2"></i> Violation Types
             </a>
 
-            <!-- Create New Violation Type -->
-            <a class="nav-link mb-2 {{ request()->routeIs('admin.violationTypes.create') ? 'active' : '' }}"
-               href="{{ route('admin.violationTypes.create') }}">
-                <i class="bi bi-plus-circle me-2"></i> Add New Violation Type
-            </a>
+           
 
         </nav>
 

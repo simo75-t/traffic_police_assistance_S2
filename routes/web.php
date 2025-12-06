@@ -4,8 +4,26 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ViolationTypeController;
+use App\Http\Controllers\Citizen\ViolationController;
 use App\Http\Services\Admin\UserService;
 use Illuminate\Support\Facades\Route;
+
+
+//citizen
+
+Route::get('/', [ViolationController::class, 'page'])->name('citizen.page');
+
+Route::get('/citizen/violations', [ViolationController::class, 'search'])->name('citizen.violations');
+
+// صفحة form الاعتراض (GET) — لعرض form للمستخدم
+Route::get('/citizen/appeal-form', function () {
+    return view('citizen.appeal');  // ملف Blade للـ form
+})->name('citizen.appeal.form');
+
+// معالجة POST من form الاعتراض
+Route::post('/citizen/appeals', [ViolationController::class, 'store'])
+     ->name('citizen.appeals.store');
+
 
 
 // Authentication Routes
@@ -42,6 +60,8 @@ Route::prefix("Users")->name("users")->group(function(){
         Route::post("/store", [ViolationTypeController::class, "store"])->name("store");
         
     });
+
+
 });
 
 

@@ -15,7 +15,6 @@ class UserService
             'role' => $attrs['role'],
             "name" => $attrs["name"],
             "email" => $attrs["email"],
-            'phone' => $attrs['phone'] ?? null,
             'password' => Hash::make($attrs['password']),
             'is_active' => $attrs['is_active'],
         ]);
@@ -36,7 +35,6 @@ class UserService
             $User->update([
                 "name" => $data["name"],
                 "email" => $data["email"],
-                'phone' => $data['phone'] ?? null,
                 'is_active' => $data['is_active']
             ]);
         } catch (\Exception $e) {

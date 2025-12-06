@@ -6,10 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Appeal extends Model
 {
-    protected $fillable = ['status' , 'reason' , 'decision_note'];
+    protected $fillable = ['violation_id', 'status', 'reason', 'decision_note'];
 
-
-    public function violations(){
-        return $this->hasMany(Violation::class);
+    public function violation()
+    {
+        return $this->belongsTo(Violation::class);
     }
 }

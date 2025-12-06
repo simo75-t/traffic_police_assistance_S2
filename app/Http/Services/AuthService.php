@@ -40,11 +40,7 @@ class AuthService
         return $user;
     }
 
-    public function logoutApi($user)
-    {
-        $user->token()->revoke();
-        return true;
-    }
+    
 
     public function profile()
     {

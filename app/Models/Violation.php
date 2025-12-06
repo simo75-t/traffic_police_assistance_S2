@@ -44,8 +44,9 @@ public function reporter()
     return $this->belongsTo(User::class, 'reported_by');
 }
 
-public function appeal(){
-    return $this->belongsTo(Appeal::class);
+public function appeal()
+{
+    return $this->hasOne(Appeal::class);
 }
 
 

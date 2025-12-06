@@ -1,21 +1,34 @@
-<?php 
-
+<?php
 namespace App\Http\Services\Citizen;
 
+use App\Models\Appeal;
 use App\Models\Violation;
 
-class ViolationService{
+class ViolationService
+{
+    public function fetchViolations(array $data = [])
+    {
+        $query = Violation::with(['violationLocation.city', 'violationType', 'vehicle' ,  'appeal']);
 
-    public function fatchViolations( array $data = []){
-
-        $violations = Violation::where('plate_snapshot' , $data['plate'])
-        ->orderBy('created_at')
-        ->paginate(5);
-
-            if (isset($params['search'])) {
-            $violations->where('name', 'like', "%{$violations['search']}%");
+        if (isset($data['plate'])) {
+            $query->where('vehicle_snapshot->plate_number', $data['plate']);
         }
 
-        return $violations ;
+        return $query->orderBy('created_at', 'desc')
+                     ->paginate(5);
+    }
+
+    public function createAppeal(array $data, int $violationId)
+    {
+        $appeal = Appeal::create([
+            'violation_id' => $violationId ,  
+            'status'        => $data['status'] ?? 'pending',
+            'reason'        => $data['reason'],
+            'decision_note' => $data['decision_note'] ?? null,
+        ]);
+
+       
+
+        return $appeal;
     }
 }

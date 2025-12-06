@@ -8,6 +8,7 @@ use App\Http\Services\AuthService;
 use App\Http\Resources\ProfileResource;
 use App\Enums\RoleUserEnum;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Request;
 
 class AuthController extends Controller
 {
@@ -32,11 +33,20 @@ class AuthController extends Controller
         return $this->success( new ProfileResource($profile));
     }
     
-    public function logout()
-    {
-        $this->authService->logoutApi(Auth::user());
-        return $this->success([], 'Logged out');
+    public function logout(Request $request)
+{
+    $token = $request->user()->token(); 
+    if ($token) {
+        $token->revoke(); 
     }
+
+    return response()->json([
+        'status_code' => 200,
+        'message'     => 'Logged out successfully',
+        'data'        => [],
+    ]);
+}
+
 }
 
 
