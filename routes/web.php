@@ -5,8 +5,12 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ViolationTypeController;
 use App\Http\Controllers\Citizen\ViolationController;
+use App\Http\Controllers\QueueController;
 use App\Http\Services\Admin\UserService;
 use Illuminate\Support\Facades\Route;
+
+
+Route::get('/test-queue', [QueueController::class, 'sendMessage']);
 
 
 //citizen
@@ -60,6 +64,8 @@ Route::prefix("Users")->name("users")->group(function(){
         Route::post("/store", [ViolationTypeController::class, "store"])->name("store");
         
     });
+
+
 
 
 });

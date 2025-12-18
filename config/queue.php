@@ -31,6 +31,8 @@ return [
 
     'connections' => [
 
+
+
         'sync' => [
             'driver' => 'sync',
         ],
@@ -89,6 +91,27 @@ return [
             ],
         ],
 
+'rabbitmq' => [
+    'driver' => 'rabbitmq',
+    'queue'  => env('RABBITMQ_QUEUE', 'ai_service'),
+
+    'host'     => env('RABBITMQ_HOST', '127.0.0.1'),
+    'port'     => env('RABBITMQ_PORT', 5672),
+    'user'     => env('RABBITMQ_USER', 'admin'),
+    'password' => env('RABBITMQ_PASSWORD', 'admin123'),
+    'vhost'    => env('RABBITMQ_VHOST', '/'),
+
+    'heartbeat' => env('RABBITMQ_HEARTBEAT_CONNECTION', 0),
+
+    'pool' => [
+        'max_connections' => env('RABBITMQ_MAX_CONNECTIONS', 10),
+        'min_connections' => env('RABBITMQ_MIN_CONNECTIONS', 1),
+    ],
+],
+
+
+
+
     ],
 
     /*
@@ -125,5 +148,7 @@ return [
         'database' => env('DB_CONNECTION', 'sqlite'),
         'table' => 'failed_jobs',
     ],
+
+    
 
 ];

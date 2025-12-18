@@ -10,9 +10,11 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "iamfarhad/laravel-rabbitmq": "^0.0.8",
         "laravel/framework": "^12.0",
         "laravel/passport": "^13.0",
-        "laravel/tinker": "^2.10.1"
+        "laravel/tinker": "^2.10.1",
+        "php-amqplib/php-amqplib": "^3.7"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
