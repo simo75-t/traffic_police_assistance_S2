@@ -5,4 +5,4 @@
 - maryam almasri
 
 ## Project Description
-A system designed to assist traffic police operations and reporting.
+is  system enhanced with AI for managing traffic violations. It enables officers to record violations using voice input, automatically extract license plate numbers from images, and generate structured reports. The system improves accuracy, reduces manual work, and streamlines violation and appeal management
