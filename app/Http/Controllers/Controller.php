@@ -12,8 +12,8 @@ abstract class Controller{
 public function success($data , $massage= "Success" , $code = 200) {
 return response()->json([
     "status_code" => $code , 
+    "message" => $massage ,
     "massage" => $massage ,
     "data" => $data ,
 ] , $code);
 }}
-

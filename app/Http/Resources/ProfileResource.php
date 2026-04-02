@@ -25,9 +25,12 @@ class ProfileResource extends JsonResource
             "updated_at" => $this->updated_at ,
         ];
 
-        if($this->access_token){
-            $user["token"] = $this->access_token;
+        if ($this->access_token) {
+            $user['token'] = $this->access_token;
+            $user['access_token'] = $this->access_token;
+            $user['token_type'] = 'Bearer';
         }
-        return $user ;
+
+        return $user;
     }
 }

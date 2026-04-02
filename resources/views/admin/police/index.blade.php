@@ -1,196 +1,116 @@
-@extends('admin.layout')
+@extends('admin.layouts.app')
 
-@section('title', 'Manage Police Accounts')
+@section('title', 'Police Accounts')
 
 @section('content')
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <h1 class="page-title">Police Accounts</h1>
+        <p class="page-subtitle">Manage police managers and police officers from one admin workspace.</p>
+    </div>
 
-<style>
-    /* ===== Header ===== */
-    .app-content-header {
-        margin-bottom: 25px;
-    }
+    <a href="{{ route('admin.users.create') }}" class="btn text-white rounded-4 px-4 py-3 fw-bold" style="background: linear-gradient(135deg, #1a5d87, #10243d);">
+        <i class="bi bi-plus-circle me-2"></i>Create New Account
+    </a>
+</div>
 
-    .app-title {
-        font-size: 28px;
-        font-weight: 700;
-        color: #2b2b2b;
-    }
-
-    /* ===== Card Style ===== */
-    .modern-card {
-        border-radius: 14px !important;
-        border: none;
-        background: #fff;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.07);
-    }
-
-    /* ===== Table Style ===== */
-    .modern-table th {
-        background-color: #f8f9fc !important;
-        font-weight: 600;
-        border-bottom: 2px solid #e5e7eb;
-    }
-
-    .modern-table td {
-        vertical-align: middle;
-        font-size: 15px;
-        padding: 12px 10px;
-    }
-
-    .modern-table tbody tr {
-        transition: .25s;
-    }
-
-    .modern-table tbody tr:hover {
-        background: #f4f8ff;
-        cursor: pointer;
-    }
-
-    /* ===== Buttons ===== */
-    .btn-modern {
-        border-radius: 10px !important;
-        font-weight: 500;
-        padding: 8px 18px;
-        transition: .25s;
-    }
-
-    .btn-create {
-        background: linear-gradient(135deg, #0d6efd, #0056d6);
-        color: #fff;
-        border: none;
-    }
-
-    .btn-create:hover {
-        background: linear-gradient(135deg, #0056d6, #003c99);
-        transform: translateY(-2px);
-    }
-
-    .btn-action {
-        border-radius: 8px !important;
-        font-size: 14px;
-        padding: 6px 14px;
-    }
-
-    .badge {
-        font-size: 13px;
-        padding: 6px 10px;
-        border-radius: 6px;
-    }
-
-</style>
-
-
-<div class="app-content-header">
-    <div class="container-fluid">
-        <div class="row align-items-center justify-content-between">
-
-            <div class="col-md-6">
-                <h3 class="app-title">Police Accounts</h3>
+<div class="content-card mb-4">
+    <div class="content-card-body">
+        <form method="GET" action="{{ route('admin.users.index') }}" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">Search by Name</label>
+                <input type="text" name="search" value="{{ $filters['search'] ?? '' }}" class="form-control rounded-4" placeholder="Officer or manager name">
             </div>
-
-            <div class="col-md-6 text-md-end text-center">
-                <a href="{{ route('admin.users.create') }}" class="btn btn-modern btn-create shadow-sm">
-                    <i class="bi bi-plus-circle me-1"></i> Create New Account
-                </a>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Status</label>
+                <select name="status" class="form-select rounded-4">
+                    <option value="">All statuses</option>
+                    <option value="active" @selected(($filters['status'] ?? '') === 'active')>Active</option>
+                    <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inactive</option>
+                </select>
             </div>
-
-        </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Role</label>
+                <select name="role" class="form-select rounded-4">
+                    <option value="">All roles</option>
+                    <option value="Police_officer" @selected(($filters['role'] ?? '') === 'Police_officer')>Police Officer</option>
+                    <option value="Police_manager" @selected(($filters['role'] ?? '') === 'Police_manager')>Police Manager</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-bold">Sort</label>
+                <select name="order_direction" class="form-select rounded-4">
+                    <option value="desc" @selected(($filters['order_direction'] ?? 'desc') === 'desc')>Newest</option>
+                    <option value="asc" @selected(($filters['order_direction'] ?? '') === 'asc')>Oldest</option>
+                </select>
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary rounded-4 px-4">Apply Filters</button>
+                <a href="{{ route('admin.users.index') }}" class="btn btn-light rounded-4 px-4 border">Reset</a>
+            </div>
+        </form>
     </div>
 </div>
 
+<div class="content-card">
+    <div class="content-card-body">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($users as $p)
+                        <tr>
+                            <td>{{ $p->id }}</td>
+                            <td class="fw-bold">{{ $p->name }}</td>
+                            <td>{{ $p->email }}</td>
+                            <td>{{ str_replace('_', ' ', $p->role) }}</td>
+                            <td>
+                                <span class="badge rounded-pill bg-{{ $p->is_active ? 'success' : 'danger' }}">
+                                    {{ $p->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex justify-content-end flex-wrap gap-2">
+                                    <a href="{{ route('admin.users.show', $p->id) }}" class="btn btn-light border rounded-4">View</a>
+                                    <a href="{{ route('admin.users.edit', $p->id) }}" class="btn btn-warning rounded-4">Edit</a>
 
-<div class="app-content">
-    <div class="container-fluid">
+                                    <form action="{{ route('admin.users.toggle', $p->id) }}" method="POST">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="btn btn-outline-{{ $p->is_active ? 'danger' : 'success' }} rounded-4">
+                                            {{ $p->is_active ? 'Deactivate' : 'Activate' }}
+                                        </button>
+                                    </form>
 
-        <div class="card modern-card">
-            <div class="card-body">
-
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover text-center modern-table mb-0">
-
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th width="25%">Actions</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            @forelse($users as $p)
-                            <tr>
-                                <td>{{ $p->id }}</td>
-
-                                <td class="text-capitalize">{{ $p->name }}</td>
-
-                                <td>{{ $p->email }}</td>
-
-                                <td>{{ $p->Phone ? $p->Phone : '—' }}</td>
-
-                                <td class="text-capitalize">
-                                    {{ str_replace('_', ' ', $p->role) }}
-                                </td>
-
-                                <td>
-                                    @if($p->is_active)
-                                        <span class="badge bg-success">Active</span>
-                                    @else
-                                        <span class="badge bg-danger">Inactive</span>
-                                    @endif
-                                </td>
-
-                                <td>
-                                    <div class="d-flex justify-content-center gap-2">
-
-                                        {{-- Edit --}}
-                                        <a href="{{ route('admin.users.edit', $p->id) }}"
-                                            class="btn btn-warning btn-action">
-                                            <i class="bi bi-pencil"></i> Edit
-                                        </a>
-
-                                        {{-- Toggle --}}
-                                        <form action="{{ route('admin.users.toggle', $p->id) }}" method="POST">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit"
-                                                class="btn btn-outline-{{ $p->is_active ? 'danger' : 'success' }} btn-action">
-                                                <i class="bi bi-{{ $p->is_active ? 'slash-circle' : 'check-circle' }}"></i>
-                                                {{ $p->is_active ? 'Deactivate' : 'Activate' }}
-                                            </button>
-                                        </form>
-
-                                        {{-- Delete --}}
-                                        <form action="{{ route('admin.users.delete', $p->id) }}" method="POST"
-                                            onsubmit="return confirm('Are you sure you want to delete this account?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-danger btn-action">
-                                                <i class="bi bi-trash"></i> Delete
-                                            </button>
-                                        </form>
-
-                                    </div>
-                                </td>
-                            </tr>
-
-                            @empty
-                            <tr>
-                                <td colspan="7" class="text-muted py-3">No police accounts found.</td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-
-                    </table>
-                </div>
-
-            </div>
+                                    <form action="{{ route('admin.users.delete', $p->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this account?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger rounded-4">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">No police accounts found for the selected filters.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
 
+        <div class="mt-4">
+            {{ $users->withQueryString()->links() }}
+        </div>
     </div>
 </div>
-
 @endsection

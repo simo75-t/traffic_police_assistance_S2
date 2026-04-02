@@ -4,18 +4,15 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Services\Admin\DashboardService;
-use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    protected $dashboardService;
-
-    public function __construct( DashboardService $dashboardService)
+    public function __construct(private readonly DashboardService $dashboardService)
     {
-        $this->dashboardService = $dashboardService;
     }
 
-    public function index()
+    public function index(): View
     {
         $stats = $this->dashboardService->getDashboardStats();
 

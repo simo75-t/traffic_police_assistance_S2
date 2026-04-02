@@ -8,10 +8,17 @@ class ViolationService
 {
     public function fetchViolations(array $data = [])
     {
-        $query = Violation::with(['violationLocation.city', 'violationType', 'vehicle' ,  'appeal']);
+        $query = Violation::query()->with([
+            'violationLocation.cityRecord',
+            'violationType',
+            'vehicle',
+            'appeal',
+        ]);
 
         if (isset($data['plate'])) {
-            $query->where('vehicle_snapshot->plate_number', $data['plate']);
+            $query->whereHas('vehicle', function ($q) use ($data) {
+                $q->where('plate_number', $data['plate']);
+            });
         }
 
         return $query->orderBy('created_at', 'desc')

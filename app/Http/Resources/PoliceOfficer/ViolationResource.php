@@ -26,9 +26,10 @@ class ViolationResource extends JsonResource
             'created_at'  => $this->appeal->created_at,
             'updated_at'  => $this->appeal->updated_at,
         ] : null,
-        'occurred_at'    => optional($this->occurred_at)->toDateTimeString(),
-        'created_at'     => $this->created_at->toDateTimeString(),
-        'updated_at'     => $this->updated_at->toDateTimeString(),
+       'occurred_at' => optional($this->occurred_at)->toIso8601String(),
+'created_at'  => optional($this->created_at)->toIso8601String(),
+'updated_at'  => optional($this->updated_at)->toIso8601String(),
+
     ];
 }
 

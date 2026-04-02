@@ -5,30 +5,32 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CreateViolationType;
 use App\Http\Services\Admin\ViolationTypeService;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 
 class ViolationTypeController extends Controller
 {
-    protected $violationType ;
-    public function __construct( ViolationTypeService $violationType)
+    public function __construct(private readonly ViolationTypeService $violationTypeService)
     {
-        $this->violationType = $violationType;
     }
 
-    public function index(){
-         $violationTypes = $this->violationType->getViolationTypeList();
+    public function index(): View
+    {
+        $violationTypes = $this->violationTypeService->getViolationTypeList();
+
         return view("admin.violationType.index", compact('violationTypes'));
     }
 
-    public function create(){
+    public function create(): View
+    {
         return view('admin.violationType.create');
     }
 
-    public function store(CreateViolationType $request ){
+    public function store(CreateViolationType $request): RedirectResponse
+    {
         $attr = $request->validated();
-        $this->violationType->createViolationType($attr);
+        $this->violationTypeService->createViolationType($attr);
+
         return redirect()->route('admin.violationTypes.index')->with('success', 'violation type created successfully.');
     }
-
-
 }

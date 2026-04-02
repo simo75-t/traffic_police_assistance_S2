@@ -15,13 +15,17 @@ class EnsureUserIsAdmin
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
-     public function handle(Request $request, Closure $next)
+     public function handle(Request $request, Closure $next): Response
     {
         $user = Auth::guard('web')->user();
 
-        if (! $user || $user->role !== RoleUserEnum::Admin) {
+        if (! $user || $user->role !== RoleUserEnum::Admin || ! $user->is_active) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
             return redirect()->route('admin.login')
-                ->withErrors(['error' => 'You do not have permission to access this area.']);
+                ->withErrors(['login' => 'You do not have permission to access the admin area.']);
         }
 
         return $next($request);

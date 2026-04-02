@@ -2,43 +2,53 @@
 
 namespace App\Http\Controllers\PoliceManager;
 
-use App\Enums\RoleUserEnum;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\LoginRequest;
-use App\Http\Services\AuthService;
+use App\Http\Requests\PoliceManager\LoginRequest;
+use App\Http\Services\PoliceManager\AuthService;
+use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
-use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    protected AuthService $authService;
-
-    public function __construct(AuthService $authService)
+    public function __construct(private readonly AuthService $authService)
     {
-        $this->authService = $authService;
     }
 
-    
+    /**
+     * Render the police manager login screen.
+     */
     public function showLoginForm(): View
     {
         return view('policemanager.auth.login');
     }
 
+    /**
+     * Authenticate only active police managers and redirect them to their dashboard.
+     */
     public function login(LoginRequest $request): RedirectResponse
     {
-        $attrs = $request->validated();
+        $credentials = $request->validated();
+        $user = $this->authService->attemptLogin($credentials);
 
-        $user = $this->authService->loginWeb($attrs, RoleUserEnum::Police_manager);
+        if (! $user) {
+            return back()
+                ->withErrors(['login' => 'Email or password is incorrect, or the account is inactive.'])
+                ->withInput($request->only('email'));
+        }
 
-        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
 
         return redirect()->intended(route('policemanager.home'));
     }
 
-    public function logout(): RedirectResponse
+    /**
+     * End the authenticated session cleanly and send the user back to login.
+     */
+    public function logout(Request $request): RedirectResponse
     {
-        Auth::guard('web')->logout();
+        $this->authService->logout($request);
+
         return redirect()->route('policemanager.login');
     }
 }

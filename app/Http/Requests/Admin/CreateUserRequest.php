@@ -25,14 +25,12 @@ class CreateUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-                'name' => ['string' , 'required'],
-                'email' => ["email" , "string" ,"required" , "unique:users,email"],
+                'name' => ['string' , 'required', 'max:255'],
+                'email' => ["email" , "string" ,"required" , "max:255", "unique:users,email"],
                 'password' => ["required" , "string" , "min:6"],
                 'role' => ["string" , "required" , Rule::in([ RoleUserEnum::Police_manager,
                 RoleUserEnum::Police_officer ]) ],
-                'is_active' => ['nullable' ],
-                "phone" => ["string" ,"nullable" , 'digits:10'],
-            
+                'is_active' => ['required', 'boolean' ],
         ];
     }
 }

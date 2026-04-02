@@ -7,24 +7,22 @@ use PhpAmqpLib\Message\AMQPMessage;
 
 class RabbitPublisher
 {
-    public function publish(string $routingKey, array $data): void
+    public function publish(string $routingKey, array $data, string $queueName): void
     {
         $conn = new AMQPStreamConnection(
-            env('RABBITMQ_HOST', '127.0.0.1'),
-            (int) env('RABBITMQ_PORT', 5672),
-            env('RABBITMQ_USER', 'admin'),
-            env('RABBITMQ_PASSWORD', 'admin123'),
-            env('RABBITMQ_VHOST', '/')
+            config('rabbitmq.host', '127.0.0.1'),
+            config('rabbitmq.port', 5672),
+            config('rabbitmq.user', 'admin'),
+            config('rabbitmq.password', 'admin123'),
+            config('rabbitmq.vhost', '/')
         );
 
         $ch = $conn->channel();
-
-        $exchange = env('AI_RMQ_EXCHANGE', 'ai.exchange');
-        $jobsQueue = env('AI_RMQ_JOBS_QUEUE', 'ai.jobs');
+        $exchange = config('ai_rmq.exchange');
 
         $ch->exchange_declare($exchange, 'direct', false, true, false);
-        $ch->queue_declare($jobsQueue, false, true, false, false);
-        $ch->queue_bind($jobsQueue, $exchange, 'job.create');
+        $ch->queue_declare($queueName, false, true, false, false);
+        $ch->queue_bind($queueName, $exchange, $routingKey);
 
         $msg = new AMQPMessage(
             json_encode($data, JSON_UNESCAPED_UNICODE),

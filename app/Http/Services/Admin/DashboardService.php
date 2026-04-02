@@ -1,26 +1,26 @@
 <?php
 
 namespace App\Http\Services\Admin;
+
 use App\Models\User;
 
 class DashboardService
 {
-    public function getDashboardStats()
+    /**
+     * @return array{totalUsers: int, activeUsers: int, inactiveUsers: int, latestUsers: \Illuminate\Database\Eloquent\Collection<int, User>}
+     */
+    public function getDashboardStats(): array
     {
-        $totalUsers = User::count();
-        $activeUsers = User::where('is_active', true)->count();
-        $inactiveUsers = User::where('is_active', false)->count();
-
-        $latestUsers = User::orderBy('created_at', 'desc')->take(5)->get();
-
+        $totalUsers = User::query()->count();
+        $activeUsers = User::query()->where('is_active', true)->count();
+        $inactiveUsers = User::query()->where('is_active', false)->count();
+        $latestUsers = User::query()->latest()->take(5)->get();
 
         return [
             'totalUsers' => $totalUsers,
             'activeUsers' => $activeUsers,
             'inactiveUsers' => $inactiveUsers,
             'latestUsers' => $latestUsers,
-
         ];
     }
-
 }

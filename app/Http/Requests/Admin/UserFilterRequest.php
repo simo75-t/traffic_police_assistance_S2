@@ -29,6 +29,7 @@ class UserFilterRequest extends FormRequest
             'search' => 'nullable|string|max:255',
             'order_by' => 'nullable|in:name,email,created_at',
             'order_direction' => 'nullable|in:asc,desc',
+            'role' => 'nullable|in:Police_manager,Police_officer,admin',
         ];
     }
 }

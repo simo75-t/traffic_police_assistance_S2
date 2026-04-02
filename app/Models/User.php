@@ -4,6 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -27,7 +29,8 @@ class User extends Authenticatable
         'role' , 
         'profile_image' , 
         'is_active', 
-
+        'fcm_token',
+        'last_seen_at',
     ];
 
     /**
@@ -50,10 +53,38 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_seen_at' => 'datetime',
+            'is_active' => 'boolean',
         ];
     }
 
-    public function violation(){
+    public function violation(): HasMany
+    {
+        return $this->hasMany(Violation::class);
+    }
+
+    public function assignedReports(): HasMany
+    {
+        return $this->hasMany(CitizenReport::class, 'assigned_officer_id');
+    }
+
+    public function reportAssignments(): HasMany
+    {
+        return $this->hasMany(ReportAssignment::class, 'officer_id');
+    }
+
+    public function uploadedAttachments(): HasMany
+    {
+        return $this->hasMany(Attachment::class, 'uploaded_by');
+    }
+
+    public function liveLocation(): HasOne
+    {
+        return $this->hasOne(OfficerLiveLocation::class, 'officer_id');
+    }
+
+    public function violationsReported(): HasMany
+    {
         return $this->hasMany(Violation::class);
     }
 }

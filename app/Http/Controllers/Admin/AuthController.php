@@ -2,60 +2,44 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\RoleUserEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
-use App\Http\Services\AuthService;
+use App\Http\Services\Admin\AuthService;
+use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
-use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    protected AuthService $authService;
-
-    public function __construct(AuthService $authService)
+    public function __construct(private readonly AuthService $authService)
     {
-        $this->authService = $authService;
     }
 
-   
     public function showLoginForm(): View
     {
         return view("admin.login");
     }
 
-   
     public function login(LoginRequest $request): RedirectResponse
-{
-    $attrs = $request->validated();
+    {
+        $attrs = $request->validated();
+        $user = $this->authService->attemptLogin($attrs);
 
-    try {
-        $user = $this->authService->loginWeb($attrs, RoleUserEnum::Admin);
-
-        if (! $user->is_active) {
-            Auth::logout();
+        if (! $user) {
             return redirect()->back()
-                ->withErrors(['email' => 'Your account is disabled.'])
+                ->withErrors(['login' => 'Email or password is incorrect.'])
                 ->withInput($request->only('email'));
         }
 
-        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
 
-        return redirect()->intended(route("admin.home"));
-
-    } catch (\App\Exceptions\GeneralException $e) {
-        return redirect()->back()
-            ->withErrors(['login' => 'Email or password is incorrect'])
-            ->withInput($request->only('email'));
+        return redirect()->intended(route('admin.home'));
     }
-}
 
-    
-  
-    public function logout(): RedirectResponse
+    public function logout(Request $request): RedirectResponse
     {
-        Auth::guard('web')->logout();
-        return redirect()->route("admin.login");
+        $this->authService->logout($request);
+
+        return redirect()->route('admin.login');
     }
 }

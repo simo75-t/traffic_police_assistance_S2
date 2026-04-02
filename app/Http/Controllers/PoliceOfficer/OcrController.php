@@ -56,7 +56,10 @@ $absolutePath = $path->getPathname();
             'schema_version' => 1,
         ];
 
-        $publisher->publish('job.create', $message);
+        $routingKey = env('AI_RMQ_OCR_ROUTING_KEY', 'job.ocr.create');
+        $queueName  = env('AI_RMQ_OCR_QUEUE', 'ai.ocr.jobs');
+
+        $publisher->publish($routingKey, $message, $queueName);
 
         return response()->json([
             'status' => 'queued',

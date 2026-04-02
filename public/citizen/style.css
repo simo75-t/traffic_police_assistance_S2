@@ -8,7 +8,7 @@ body {
 }
 
 .container {
-  width: 450px;
+  width: min(92vw, 680px);
   margin: 70px auto;
   padding: 30px;
   color: white;
@@ -84,6 +84,23 @@ button:hover {
   text-align: left;
   margin-top: 15px;
   color: white;
+}
+
+@media (max-width: 640px) {
+  .container {
+    width: calc(100vw - 28px);
+    margin: 28px auto;
+    padding: 22px;
+  }
+
+  .search-box {
+    flex-direction: column;
+  }
+
+  .search-box input,
+  .search-box button {
+    width: 100%;
+  }
 }
 
 .result-card button {

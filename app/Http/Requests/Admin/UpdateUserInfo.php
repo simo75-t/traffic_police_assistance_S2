@@ -5,6 +5,7 @@ namespace App\Http\Requests\Admin;
 use App\Enums\RoleUserEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class UpdateUserInfo extends FormRequest
 {
@@ -25,10 +26,15 @@ class UpdateUserInfo extends FormRequest
     public function rules(): array
     {
         return [
-                'name' => ['string'],
-                'email' => ["email" , "string" ],
-                'is_active' => ['nullable'] ,
-                "phone" => ["string" ,"nullable" ,'digits:10' ],
+                'name' => ['required', 'string', 'max:255'],
+                'email' => [
+                    'required',
+                    'email',
+                    'string',
+                    'max:255',
+                    Rule::unique('users', 'email')->ignore($this->route('user')),
+                ],
+                'is_active' => ['required', 'boolean'] ,
         ];
     }
 }

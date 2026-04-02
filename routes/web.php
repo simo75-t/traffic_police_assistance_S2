@@ -5,6 +5,10 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ViolationTypeController;
 use App\Http\Controllers\Citizen\ViolationController;
+use App\Http\Controllers\PoliceManager\AppealControllerPolice;
+use App\Http\Controllers\PoliceManager\AuthController as PoliceManagerAuthController;
+use App\Http\Controllers\PoliceManager\DashboardController as PoliceManagerDashboardController;
+use App\Http\Controllers\PoliceManager\ViolationControllerPolice;
 use App\Http\Controllers\QueueController;
 use App\Http\Services\Admin\UserService;
 use Illuminate\Support\Facades\Route;
@@ -35,7 +39,7 @@ Route::post('/citizen/appeals', [ViolationController::class, 'store'])
 Route::prefix('admin')->name('admin.')->group(function () {
 
 Route::get("login", [AuthController::class, "showLoginForm"])->name("login");
-Route::post("login", [AuthController::class, "login"])->name("login_action");
+Route::post("login", [AuthController::class, "login"])->name("login.submit");
 Route::post("logout", [AuthController::class, "logout"])->name("logout");
 
 // Protected Admin Routes
@@ -70,5 +74,22 @@ Route::prefix("Users")->name("users")->group(function(){
 
 });
 
+});
 
+// Police Manager Authentication
+Route::prefix('policemanager')->name('policemanager.')->group(function () {
+    Route::get('login', [PoliceManagerAuthController::class, 'showLoginForm'])->name('login');
+    Route::post('login', [PoliceManagerAuthController::class, 'login'])->name('login.submit');
+
+    Route::middleware(['auth', 'police.manager'])->group(function () {
+        Route::get('/', [PoliceManagerDashboardController::class, 'index'])->name('home');
+        Route::get('/violations', [ViolationControllerPolice::class, 'index'])->name('violations.index');
+
+        Route::get('/appeals', [AppealControllerPolice::class, 'index'])->name('appeals.index');
+        Route::get('/appeals/{appeal}', [AppealControllerPolice::class, 'show'])->name('appeals.show');
+        Route::post('/appeals/{appeal}', [AppealControllerPolice::class, 'update'])->name('appeals.update');
+        Route::put('/appeals/{appeal}', [AppealControllerPolice::class, 'updateStatus'])->name('appeals.updateStatus');
+
+        Route::post('logout', [PoliceManagerAuthController::class, 'logout'])->name('logout');
+    });
 });

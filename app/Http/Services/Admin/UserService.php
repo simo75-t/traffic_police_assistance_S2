@@ -2,69 +2,75 @@
 
 namespace App\Http\Services\Admin;
 
-use App\Exceptions\GeneralException;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Hash;
 
 class UserService
 {
-
-    public function createUser($attrs)
+    /**
+     * @param array{name: string, email: string, password: string, role: string, is_active: bool|int|string} $attrs
+     */
+    public function createUser(array $attrs): User
     {
-        $user = User::create([
+        return User::create([
             'role' => $attrs['role'],
-            "name" => $attrs["name"],
-            "email" => $attrs["email"],
+            'name' => $attrs['name'],
+            'email' => $attrs['email'],
             'password' => Hash::make($attrs['password']),
-            'is_active' => $attrs['is_active'],
+            'is_active' => (bool) $attrs['is_active'],
         ]);
-        return $user;
     }
 
     public function getUserById(User $user): User
     {
-        if (! $user) {
-            throw new GeneralException("User not found", 404);
-        }
         return $user;
     }
 
-    public function updateUser($User, array $data): User
+    /**
+     * @param array{name: string, email: string, is_active: bool|int|string} $data
+     */
+    public function updateUser(User $user, array $data): User
     {
-        try {
-            $User->update([
-                "name" => $data["name"],
-                "email" => $data["email"],
-                'is_active' => $data['is_active']
-            ]);
-        } catch (\Exception $e) {
-            throw new GeneralException("Failed to update User: " . $e->getMessage(), 500);
-        }
-        return $User;
-    }
+        $user->update([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'is_active' => (bool) $data['is_active'],
+        ]);
 
-
-    public function deleteUser($User): bool
-    {
-        if ($User) {
-            return $User->delete();
-        }
-        return throw new GeneralException("Failed to delete User");
-    }
-
-    public function UpdateStatusAccount($user, $data)
-    {
-        try {
-            $user->update([
-                'is_active' => $data['is_active']
-            ]);
-        } catch (\Exception $e) {
-            throw new GeneralException("Failed to update User Account status: " . $e->getMessage(), 500);
-        }
         return $user;
     }
 
-    public function getUserList(array $params = [])
+
+    public function deleteUser(User $user): bool
+    {
+        return $user->delete();
+    }
+
+    /**
+     * @param array{is_active: bool|int|string} $data
+     */
+    public function updateStatusAccount(User $user, array $data): User
+    {
+        $user->update([
+            'is_active' => (bool) $data['is_active'],
+        ]);
+
+        return $user;
+    }
+
+    public function toggleStatus(User $user): User
+    {
+        $user->is_active = ! $user->is_active;
+        $user->save();
+
+        return $user;
+    }
+
+    /**
+     * @param array{status?: string|null, search?: string|null, order_by?: string|null, order_direction?: string|null, role?: string|null} $params
+     */
+    public function getUserList(array $params = []): LengthAwarePaginator
     {
         $query = User::query();
 
@@ -72,18 +78,17 @@ class UserService
             $query->where('role', $params['role']);
         }
 
-        if (isset($params['status'])) {
-            $query->where('is_active', $params['status']);
+        if (isset($params['status']) && $params['status'] !== null && $params['status'] !== '') {
+            $query->where('is_active', $params['status'] === 'active');
         }
 
-        if (isset($params['search'])) {
+        if (isset($params['search']) && $params['search'] !== null && $params['search'] !== '') {
             $query->where('name', 'like', "%{$params['search']}%");
         }
 
         $orderBy = $params['order_by'] ?? 'created_at';
         $direction = $params['order_direction'] ?? 'desc';
 
-      
         return $query->orderBy($orderBy, $direction)->paginate(10);
     }
 }

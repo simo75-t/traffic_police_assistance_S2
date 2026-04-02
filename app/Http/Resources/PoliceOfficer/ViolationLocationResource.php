@@ -14,14 +14,20 @@ class ViolationLocationResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $city = $this->city ?? $this->cityRecord;
+
         return [
             'id'          => $this->id,
-            'city'        => [
-                'id'   => $this->city->id,
-                'name' => $this->city->name,
-            ],
+            'city'        => $city ? [
+                'id' => $city->id,
+                'name' => $city->name,
+            ] : null,
             'street_name' => $this->street_name,
             'landmark'    => $this->landmark,
+            'address' => $this->address,
+            'latitude' => $this->latitude,
+            'longitude' => $this->longitude,
+            'city_name' => $this->city,
         ];
     }
 }
