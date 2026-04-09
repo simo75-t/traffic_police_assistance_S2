@@ -31,6 +31,12 @@
             </article>
 
             <article class="action-card">
+                <h3>View Heatmap</h3>
+                <p>Analyze violation density by location and time slot, then inspect the busiest hotspots from one screen.</p>
+                <a class="btn btn-primary" href="{{ route('policemanager.violations.heatmap') }}">Open Heatmap</a>
+            </article>
+
+            <article class="action-card">
                 <h3>View Appeals</h3>
                 <p>Review submitted appeals, inspect case details, and update the decision status from the list or the detailed page.</p>
                 <a class="btn btn-primary" href="{{ route('policemanager.appeals.index') }}">Open Appeals</a>

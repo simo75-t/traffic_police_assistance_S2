@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\PoliceOfficer;
 
+use App\Models\City;
 use App\Models\Vehicle;
 use App\Models\Violation;
 use App\Models\ViolationLocation;
@@ -12,6 +13,25 @@ use Illuminate\Support\Facades\DB;
 
 class ViolationService
 {
+    private function normalizeCityName(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = str_replace(
+            ['أ', 'إ', 'آ', 'ة', 'ى'],
+            ['ا', 'ا', 'ا', 'ه', 'ي'],
+            $normalized
+        );
+
+        return mb_strtolower($normalized, 'UTF-8');
+    }
 
 
     public function getViolationList()
@@ -40,10 +60,43 @@ class ViolationService
 
         $violationType = \App\Models\ViolationType::findOrFail($data['violation_type_id']);
 
+        $cityId = $data['city_id'] ?? null;
+        $cityName = $data['city_name'] ?? null;
+
+        if (empty($cityId) && !empty($cityName)) {
+            $normalizedIncomingCity = $this->normalizeCityName($cityName);
+
+            $matchedCity = City::query()
+                ->get()
+                ->first(function (City $city) use ($normalizedIncomingCity) {
+                    $normalizedStoredCity = $this->normalizeCityName($city->name);
+
+                    return $normalizedStoredCity !== null
+                        && $normalizedIncomingCity !== null
+                        && (
+                            $normalizedStoredCity === $normalizedIncomingCity ||
+                            str_contains($normalizedStoredCity, $normalizedIncomingCity) ||
+                            str_contains($normalizedIncomingCity, $normalizedStoredCity)
+                        );
+                });
+
+            if ($matchedCity) {
+                $cityId = $matchedCity->id;
+                $cityName = $matchedCity->name;
+            }
+        }
+
+        if ($cityId && empty($cityName)) {
+            $cityName = City::query()->find($cityId)?->name;
+        }
+
         $location = ViolationLocation::create([
-            'city_id'     => $data['city_id'],
-            'street_name' => $data['street_name'],
+            'city_id'     => $cityId,
+            'city'        => $cityName,
+            'street_name' => $data['street_name'] ?? null,
             'landmark'    => $data['landmark'] ?? null,
+            'latitude'    => $data['latitude'] ?? null,
+            'longitude'   => $data['longitude'] ?? null,
         ]);
 
         $occurredAt = !empty($data['occurred_at'])

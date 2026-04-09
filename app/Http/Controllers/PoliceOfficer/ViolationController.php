@@ -26,12 +26,13 @@ class ViolationController extends Controller
     public function create(CreateViolationRequest $request){
         $atrr =  $request->validated();
         $violation = $this->violationService->createViolation($atrr);
+        $violation->load(['vehicle', 'violationType', 'violationLocation.city']);
         return $this->success(new ViolationResource($violation)) ;
 
     }
 
 
-public function search(ViolationSearchRequest $request)
+    public function search(ViolationSearchRequest $request)
 {
     $params = $request->only([
         'plate',
@@ -43,9 +44,10 @@ public function search(ViolationSearchRequest $request)
     ]);
 
     $violations = $this->violationService->getAllViolationList($params);
+    $items = ViolationResource::collection($violations->getCollection())->resolve();
 
     return response()->json([
-        'data' => $violations->items(),
+        'data' => $items,
         'meta' => [
             'current_page' => $violations->currentPage(),
             'last_page' => $violations->lastPage(),
@@ -54,6 +56,11 @@ public function search(ViolationSearchRequest $request)
         ],
     ]);
 }
+
+    public function aiIndex(ViolationSearchRequest $request)
+    {
+        return $this->search($request);
+    }
 
 
 }

@@ -10,29 +10,35 @@ use Illuminate\Support\Str;
 
 class OcrController extends Controller
 {
-    
     public function requestPlateOcr(Request $request, RabbitPublisher $publisher)
     {
         $request->validate([
-            'image' => 'required|image|max:5120',
+            'image' => 'required|image|max:10240',
             'violation_draft_id' => 'nullable|integer',
         ]);
 
-        // 1) خزّن الصورة لوكلي
+        logger()->info('OCR request received', [
+            'user_id' => auth()->id(),
+            'has_image' => $request->hasFile('image'),
+            'original_name' => $request->file('image')?->getClientOriginalName(),
+            'mime' => $request->file('image')?->getMimeType(),
+            'size' => $request->file('image')?->getSize(),
+        ]);
+
         $path = $request->file('image')->move(
-    public_path('uploads/plates'),
-    uniqid() . '.' . $request->file('image')->getClientOriginalExtension()
-);
+            public_path('uploads/plates'),
+            uniqid() . '.' . $request->file('image')->getClientOriginalExtension()
+        );
 
-$absolutePath = $path->getPathname();
+        $absolutePath = $path->getPathname();
+        $imageUrl = asset('uploads/plates/' . basename($absolutePath));
 
-
-        // 2) أنشئ job في DB
         $jobId = (string) Str::uuid();
         $corrId = (string) Str::uuid();
 
         $payload = [
             'local_image_path' => $absolutePath,
+            'image_url' => $imageUrl,
             'violation_draft_id' => $request->input('violation_draft_id'),
         ];
 
@@ -46,7 +52,14 @@ $absolutePath = $path->getPathname();
             'payload' => $payload,
         ]);
 
-        // 3) ابعث رسالة RabbitMQ (Contract)
+        logger()->info('OCR job queued in database', [
+            'job_id' => $jobId,
+            'correlation_id' => $corrId,
+            'image_path' => $absolutePath,
+            'image_url' => $imageUrl,
+            'file_size' => @filesize($absolutePath),
+        ]);
+
         $message = [
             'job_id' => $jobId,
             'correlation_id' => $corrId,
@@ -56,10 +69,16 @@ $absolutePath = $path->getPathname();
             'schema_version' => 1,
         ];
 
-        $routingKey = env('AI_RMQ_OCR_ROUTING_KEY', 'job.ocr.create');
-        $queueName  = env('AI_RMQ_OCR_QUEUE', 'ai.ocr.jobs');
+        $routingKey = config('ai_rmq.routing_keys.ocr');
+        $queueName = config('ai_rmq.queues.ocr');
 
         $publisher->publish($routingKey, $message, $queueName);
+
+        logger()->info('OCR message published', [
+            'job_id' => $jobId,
+            'queue' => $queueName,
+            'routing_key' => $routingKey,
+        ]);
 
         return response()->json([
             'status' => 'queued',
@@ -78,5 +97,4 @@ $absolutePath = $path->getPathname();
             'error' => $job->error,
         ]);
     }
-
 }

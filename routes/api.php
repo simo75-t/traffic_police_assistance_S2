@@ -46,3 +46,4 @@ Route::get('/stt/result/{job_id}', [SttController::class, 'getSttResult']);
 
 Route::get('/ai_cities', [CityController::class, 'index']);
 Route::get('/ai_violation-types', [ViolationTypeController::class, 'index']);
+Route::get('/ai_violations', [ViolationController::class, 'aiIndex']);

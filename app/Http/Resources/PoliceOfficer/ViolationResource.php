@@ -3,6 +3,7 @@
 namespace App\Http\Resources\PoliceOfficer;
 
 use App\Http\Resources\ProfileResource;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,6 +11,13 @@ class ViolationResource extends JsonResource
 {
     public function toArray(Request $request): array
 {
+    $vehicleSnapshot = $this->vehicle_snapshot;
+
+    if (is_string($vehicleSnapshot)) {
+        $decoded = json_decode($vehicleSnapshot, true);
+        $vehicleSnapshot = is_array($decoded) ? $decoded : null;
+    }
+
     return [
         'id'             => $this->id,
         'vehicle'        => new VehicleResource($this->whenLoaded('vehicle')),
@@ -17,7 +25,14 @@ class ViolationResource extends JsonResource
         'location'       => new ViolationLocationResource($this->whenLoaded('violationLocation')),
         'description'    => $this->description,
         'fine_amount'    => (float) $this->fine_amount,
-        'vehicle_snapshot' => json_decode($this->vehicle_snapshot, true),
+        'vehicle_snapshot' => $vehicleSnapshot,
+        'plate_snapshot' => $this->plate_snapshot,
+        'owner_snapshot' => $this->owner_snapshot,
+        'source_report_id' => $this->source_report_id,
+        'data_source' => $this->data_source,
+        'is_synthetic' => (bool) $this->is_synthetic,
+        'severity_level' => $this->severity_level,
+        'status' => $this->status,
         'appeal'         => $this->appeal ? [
             'id'          => $this->appeal->id,
             'status'      => $this->appeal->status,
@@ -26,9 +41,15 @@ class ViolationResource extends JsonResource
             'created_at'  => $this->appeal->created_at,
             'updated_at'  => $this->appeal->updated_at,
         ] : null,
-       'occurred_at' => optional($this->occurred_at)->toIso8601String(),
-'created_at'  => optional($this->created_at)->toIso8601String(),
-'updated_at'  => optional($this->updated_at)->toIso8601String(),
+       'occurred_at' => $this->occurred_at instanceof CarbonInterface
+           ? $this->occurred_at->toIso8601String()
+           : null,
+'created_at'  => $this->created_at instanceof CarbonInterface
+    ? $this->created_at->toIso8601String()
+    : null,
+'updated_at'  => $this->updated_at instanceof CarbonInterface
+    ? $this->updated_at->toIso8601String()
+    : null,
 
     ];
 }

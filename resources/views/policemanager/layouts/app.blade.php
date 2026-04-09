@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Police Manager Dashboard')</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -191,7 +192,7 @@
 
         .actions-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 18px;
             margin-top: 20px;
         }
@@ -385,7 +386,8 @@
 
             <nav>
                 <a class="nav-link {{ request()->routeIs('policemanager.home') ? 'active' : '' }}" href="{{ route('policemanager.home') }}">Dashboard</a>
-                <a class="nav-link {{ request()->routeIs('policemanager.violations.*') ? 'active' : '' }}" href="{{ route('policemanager.violations.index') }}">Violations</a>
+                <a class="nav-link {{ request()->routeIs('policemanager.violations.index') ? 'active' : '' }}" href="{{ route('policemanager.violations.index') }}">Violations</a>
+                <a class="nav-link {{ request()->routeIs('policemanager.violations.heatmap') ? 'active' : '' }}" href="{{ route('policemanager.violations.heatmap') }}">Heatmap</a>
                 <a class="nav-link {{ request()->routeIs('policemanager.appeals.*') ? 'active' : '' }}" href="{{ route('policemanager.appeals.index') }}">Appeals</a>
             </nav>
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\Citizen\ViolationController;
 use App\Http\Controllers\PoliceManager\AppealControllerPolice;
 use App\Http\Controllers\PoliceManager\AuthController as PoliceManagerAuthController;
 use App\Http\Controllers\PoliceManager\DashboardController as PoliceManagerDashboardController;
+use App\Http\Controllers\PoliceManager\HeatmapController as PoliceManagerHeatmapController;
 use App\Http\Controllers\PoliceManager\ViolationControllerPolice;
 use App\Http\Controllers\QueueController;
 use App\Http\Services\Admin\UserService;
@@ -84,6 +85,9 @@ Route::prefix('policemanager')->name('policemanager.')->group(function () {
     Route::middleware(['auth', 'police.manager'])->group(function () {
         Route::get('/', [PoliceManagerDashboardController::class, 'index'])->name('home');
         Route::get('/violations', [ViolationControllerPolice::class, 'index'])->name('violations.index');
+        Route::get('/violations/heatmap', [ViolationControllerPolice::class, 'heatmap'])->name('violations.heatmap');
+        Route::post('/heatmap/generate', [PoliceManagerHeatmapController::class, 'generate'])->name('heatmap.generate');
+        Route::get('/heatmap/result/{job_id}', [PoliceManagerHeatmapController::class, 'result'])->name('heatmap.result');
 
         Route::get('/appeals', [AppealControllerPolice::class, 'index'])->name('appeals.index');
         Route::get('/appeals/{appeal}', [AppealControllerPolice::class, 'show'])->name('appeals.show');

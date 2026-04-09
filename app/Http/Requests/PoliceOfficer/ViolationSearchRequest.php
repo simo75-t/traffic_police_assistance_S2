@@ -17,7 +17,7 @@ class ViolationSearchRequest extends FormRequest
             'plate' => ['nullable', 'string', 'max:50'],
             'from'  => ['nullable', 'date', 'before_or_equal:to'],
             'to'    => ['nullable', 'date'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:500'],
         ];
     }
 

@@ -22,6 +22,18 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.role' => EnsureUserIsAdmin::class,
             'police.manager' => EnsureUserIsPoliceManager::class,
         ]);
+
+        $middleware->redirectGuestsTo(function (Request $request): string {
+            if ($request->is('admin') || $request->is('admin/*')) {
+                return route('admin.login');
+            }
+
+            if ($request->is('policemanager') || $request->is('policemanager/*')) {
+                return route('policemanager.login');
+            }
+
+            return '/';
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Throwable $exception, Request $request) {

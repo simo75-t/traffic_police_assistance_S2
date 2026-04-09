@@ -14,7 +14,7 @@ class Violation extends Model
 {
             use  HasFactory, Notifiable , HasApiTokens  ;
 
-    protected $fillable = [
+protected $fillable = [
     'vehicle_id',
     'violation_type_id',
     'violation_location_id',
@@ -31,6 +31,15 @@ class Violation extends Model
     'severity_level',
     'status',
 ];
+
+protected function casts(): array
+{
+    return [
+        'vehicle_snapshot' => 'array',
+        'occurred_at' => 'datetime',
+        'is_synthetic' => 'boolean',
+    ];
+}
 
 
 public function vehicle(): BelongsTo

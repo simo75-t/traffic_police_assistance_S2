@@ -23,12 +23,13 @@ class AiConsumeResults extends Command
 
         $ch = $conn->channel();
 
-        $exchange = env('AI_RMQ_EXCHANGE', 'ai.exchange');
-        $resultsQueue = env('AI_RMQ_RESULTS_QUEUE', 'ai.results');
+        $exchange = config('ai_rmq.exchange', env('AI_RMQ_EXCHANGE', 'ai.exchange'));
+        $resultsQueue = config('ai_rmq.queues.results', env('AI_RMQ_RESULTS_QUEUE', 'ai.results'));
+        $resultsRoutingKey = config('ai_rmq.routing_keys.results', env('AI_RMQ_RESULTS_ROUTING_KEY', 'job.result'));
 
         $ch->exchange_declare($exchange, 'direct', false, true, false);
         $ch->queue_declare($resultsQueue, false, true, false, false);
-        $ch->queue_bind($resultsQueue, $exchange, 'job.result');
+        $ch->queue_bind($resultsQueue, $exchange, $resultsRoutingKey);
 
         $this->info("Listening on {$resultsQueue}...");
 

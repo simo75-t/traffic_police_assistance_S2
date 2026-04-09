@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\PoliceManager;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PoliceManager\ViolationHeatmapRequest;
 use App\Http\Requests\PoliceManager\ViolationIndexRequest;
 use App\Http\Resources\PoliceManager\ViolationListResource;
 use App\Http\Services\PoliceManager\ViolationService;
@@ -30,5 +31,13 @@ class ViolationControllerPolice extends Controller
             'searchType' => $searchType,
             'searchValue' => $searchValue,
         ]);
+    }
+
+    public function heatmap(ViolationHeatmapRequest $request): View
+    {
+        return view(
+            'policemanager.violations.heatmap',
+            $this->violationService->getHeatmapPageData($request->validated()),
+        );
     }
 }

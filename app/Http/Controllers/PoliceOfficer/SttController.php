@@ -22,6 +22,7 @@ class SttController extends Controller
     $filename = uniqid('stt_') . '.' . ($file->getClientOriginalExtension() ?: 'wav');
 
     $file->move(public_path('uploads/audio'), $filename);
+    $absolutePath = public_path('uploads/audio/' . $filename);
 
     // 2️⃣ توليد audio_url
     $audioUrl = asset('uploads/audio/' . $filename);
@@ -34,6 +35,7 @@ class SttController extends Controller
 
     $payload = [
         'audio_url' => $audioUrl,
+        'local_audio_path' => $absolutePath,
         'violation_draft_id' => $request->input('violation_draft_id'),
     ];
 
@@ -49,8 +51,8 @@ class SttController extends Controller
 logger()->info("STT payload", [
   "job_id" => $jobId,
   "audio_url" => $audioUrl,
-  "file_path" => public_path('uploads/audio/' . $filename),
-  "file_size" => filesize(public_path('uploads/audio/' . $filename)),
+  "file_path" => $absolutePath,
+  "file_size" => filesize($absolutePath),
 ]);
 
     // 4️⃣ RabbitMQ

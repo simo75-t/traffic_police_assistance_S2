@@ -30,9 +30,12 @@ class CreateViolationRequest extends FormRequest
             'vehicle_owner' => ['nullable', 'string', 'max:255'],
 
             // Location info
-            'street_name'   => ['required', 'string', 'max:255'],
-            'city_id' => ['required', 'exists:cities,id'],
+            'street_name'   => ['nullable', 'string', 'max:255'],
+            'city_id' => ['nullable', 'exists:cities,id'],
+            'city_name' => ['nullable', 'string', 'max:255'],
             'landmark'     => ['nullable', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
 
             // Violation info
             'violation_type_id' => ['required', 'exists:violation_types,id'],
