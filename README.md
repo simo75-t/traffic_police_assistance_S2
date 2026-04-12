@@ -111,14 +111,4 @@ python manage.py run_stt_worker
 
 ---
 
-## Notes / ملاحظات
-- Branch `full-workspace` has been deleted locally because its changes are merged into `main`.
-- Keep the root `.gitignore` intact to ignore nested `.git` directories and environment files.
-- This repository contains three separate application folders; each can be treated as an independent project.
 
----
-
-## Branch Cleanup / تنظيف الفروع
-- `main` is the active branch.
-- `full-workspace` is removed locally.
-- No remote branch `full-workspace` exists on origin.
