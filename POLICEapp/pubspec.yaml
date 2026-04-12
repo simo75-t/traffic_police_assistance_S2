@@ -1,0 +1,39 @@
+name: police_traffic_assistant
+description: "Police Traffic Assistant App"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  intl: ^0.18.0
+  http: ^0.13.6
+  flutter_secure_storage: ^9.2.4
+  cupertino_icons: ^1.0.8
+  image_picker: ^0.8.7+4
+
+
+  record: ^6.1.2
+
+
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+
+dependency_overrides:
+  record_linux: ^1.2.1
+  record_platform_interface: ^1.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

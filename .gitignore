@@ -1,0 +1,28 @@
+# Ignore nested Git repository metadata
+**/.git
+**/.git_hidden
+
+# Django / Python
+django_ai_service/.venv/
+django_ai_service/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+# Local environment
+.env
+.env.*
+
+# Editor / system files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Node / PHP dependencies
+node_modules/
+vendor/
+public/build/
+
