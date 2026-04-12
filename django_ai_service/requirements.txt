@@ -1,0 +1,11 @@
+django
+djangorestframework
+djongo
+pymongo
+pika
+requests
+numpy
+pandas
+scikit-learn
+openai-whisper
+opencv-python
