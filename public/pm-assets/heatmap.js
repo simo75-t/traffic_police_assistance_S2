@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function () {
         timelineRange: document.getElementById('timeline-range'),
         timelineTimeBucket: document.getElementById('timeline-time-bucket'),
         timelineError: document.getElementById('timeline-error'),
+        detailArea: document.getElementById('detail-area'),
         detailCellId: document.getElementById('detail-cell-id'),
         detailLat: document.getElementById('detail-lat'),
         detailLng: document.getElementById('detail-lng'),
@@ -39,8 +40,11 @@ document.addEventListener('DOMContentLoaded', function () {
         timer: null,
         map: null,
         mapLayerGroup: null,
-        heatLayer: null,
+        renderedPoints: [],
+        markerByCellId: {},
     };
+    const DEFAULT_MAP_CENTER = [35.0, 38.5];
+    const DEFAULT_MAP_ZOOM = 6;
 
     function setBusy(isBusy) {
         if (!generateButton) {
@@ -92,7 +96,6 @@ document.addEventListener('DOMContentLoaded', function () {
             grid_size_meters: String(formData.get('grid_size_meters') || '300').trim(),
             include_ranking: formData.get('include_ranking') === '1',
             include_trend: formData.get('include_trend') === '1',
-            include_synthetic: formData.get('include_synthetic') === '1',
             comparison_mode: String(formData.get('comparison_mode') || '').trim(),
         };
     }
@@ -130,10 +133,50 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function resetDetails() {
+        if (nodes.detailArea) nodes.detailArea.textContent = '-';
         if (nodes.detailCellId) nodes.detailCellId.textContent = '-';
         if (nodes.detailLat) nodes.detailLat.textContent = '-';
         if (nodes.detailLng) nodes.detailLng.textContent = '-';
         if (nodes.detailIntensity) nodes.detailIntensity.textContent = '-';
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function displayAreaLabel(item) {
+        const label = String(item?.area_label || item?.location_label || '').trim();
+        return label || ('Cell ' + String(item?.cell_id || item?.label || 'Unknown'));
+    }
+
+    function focusPointByCellId(cellId) {
+        if (!cellId || !state.map) {
+            return;
+        }
+
+        const point = state.renderedPoints.find(function (item) {
+            return item.cell_id === cellId;
+        });
+
+        if (!point) {
+            return;
+        }
+
+        state.map.setView([Number(point.lat), Number(point.lng)], Math.max(state.map.getZoom() || 13, 15), {
+            animate: true,
+        });
+
+        const marker = state.markerByCellId[cellId];
+        if (marker) {
+            marker.openPopup();
+        }
+
+        setActivePoint(state.renderedPoints, state.renderedPoints.indexOf(point));
     }
 
     function renderRanking(items) {
@@ -147,9 +190,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         rankingList.innerHTML = items.map(function (item, index) {
-            const score = typeof item.intensity === 'number' ? item.intensity.toFixed(3) : String(item.intensity || '0');
-            return '<article class="hotspot-item"><div class="hotspot-item__rank">#' + (index + 1) + '</div><div class="hotspot-item__body"><strong>' + (item.cell_id || 'Unknown') + '</strong><span>Intensity ' + score + '</span></div></article>';
+            const score = Math.round((Number(item.intensity) || 0) * 100);
+            const areaLabel = escapeHtml(displayAreaLabel(item));
+            const cellId = escapeHtml(item.cell_id || 'Unknown');
+            return '<article class="hotspot-item" data-cell-id="' + cellId + '"><div class="hotspot-item__rank">#' + (index + 1) + '</div><div class="hotspot-item__body"><strong>' + areaLabel + '</strong><span>Density score ' + score + '%</span><span>Cell ' + cellId + '</span></div></article>';
         }).join('');
+
+        rankingList.querySelectorAll('[data-cell-id]').forEach(function (node) {
+            node.addEventListener('click', function () {
+                focusPointByCellId(node.getAttribute('data-cell-id'));
+            });
+        });
     }
 
     function renderTrend(items) {
@@ -157,17 +208,47 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        if (!Array.isArray(items) || !items.length) {
-            trendList.innerHTML = '<div class="empty-state">Trend data is not available for this job.</div>';
+        const meaningfulItems = Array.isArray(items)
+            ? items.filter(function (item) {
+                const current = Number(item.current_intensity) || 0;
+                const previous = Number(item.previous_intensity) || 0;
+                const difference = Number(item.difference);
+                const resolvedDifference = Number.isNaN(difference) ? current - previous : difference;
+
+                return Math.max(current, previous) >= 0.05 || Math.abs(resolvedDifference) >= 0.05;
+            })
+            : [];
+
+        if (!meaningfulItems.length) {
+            trendList.innerHTML = '<div class="empty-state">No meaningful change was detected for the selected comparison period.</div>';
             return;
         }
 
-        trendList.innerHTML = items.map(function (item) {
-            const current = typeof item.current_intensity === 'number' ? item.current_intensity.toFixed(3) : String(item.current_intensity || '0');
-            const previous = typeof item.previous_intensity === 'number' ? item.previous_intensity.toFixed(3) : String(item.previous_intensity || '0');
+        trendList.innerHTML = meaningfulItems.map(function (item) {
+            const current = Math.round((Number(item.current_intensity) || 0) * 100);
+            const previous = Math.round((Number(item.previous_intensity) || 0) * 100);
+            const rawDifference = Number(item.difference);
+            const difference = Number.isNaN(rawDifference)
+                ? ((Number(item.current_intensity) || 0) - (Number(item.previous_intensity) || 0))
+                : rawDifference;
+            const changePercent = Math.round(difference * 100);
+            const change = (changePercent >= 0 ? '+' : '') + changePercent + '%';
             const trend = item.trend || 'stable';
-            return '<article class="trend-item"><strong>' + (item.cell_id || item.label || 'Unknown') + '</strong><span>Current ' + current + '</span><span>Previous ' + previous + '</span><span class="trend-badge trend-badge--' + trend + '">' + trend.replace(/_/g, ' ') + '</span></article>';
+            const areaLabel = escapeHtml(displayAreaLabel(item));
+            const cellId = escapeHtml(item.cell_id || item.label || 'Unknown');
+            const labelMap = {
+                up: 'Increased',
+                down: 'Decreased',
+                stable: 'Stable',
+            };
+            return '<article class="trend-item" data-cell-id="' + cellId + '"><strong>' + areaLabel + '</strong><span>Current period ' + current + '%</span><span>Previous period ' + previous + '%</span><span>Change ' + change + '</span><span>Cell ' + cellId + '</span><span class="trend-badge trend-badge--' + trend + '">' + (labelMap[trend] || trend.replace(/_/g, ' ')) + '</span></article>';
         }).join('');
+
+        trendList.querySelectorAll('[data-cell-id]').forEach(function (node) {
+            node.addEventListener('click', function () {
+                focusPointByCellId(node.getAttribute('data-cell-id'));
+            });
+        });
     }
 
     function setActivePoint(points, index) {
@@ -177,6 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        if (nodes.detailArea) nodes.detailArea.textContent = displayAreaLabel(point);
         if (nodes.detailCellId) nodes.detailCellId.textContent = point.cell_id || '-';
         if (nodes.detailLat) nodes.detailLat.textContent = typeof point.lat === 'number' ? point.lat.toFixed(6) : '-';
         if (nodes.detailLng) nodes.detailLng.textContent = typeof point.lng === 'number' ? point.lng.toFixed(6) : '-';
@@ -210,10 +292,26 @@ document.addEventListener('DOMContentLoaded', function () {
         const lat = typeof point.lat === 'number' ? point.lat.toFixed(6) : '-';
         const lng = typeof point.lng === 'number' ? point.lng.toFixed(6) : '-';
 
-        return '<div class="heatmap-map-popup"><strong>' + (point.cell_id || 'Cell') + '</strong><br>Intensity: ' + intensity + '<br>Lat: ' + lat + '<br>Lng: ' + lng + '</div>';
+        return '<div class="heatmap-map-popup"><strong>' + escapeHtml(displayAreaLabel(point)) + '</strong><br>Cell: ' + escapeHtml(point.cell_id || '-') + '<br>Intensity: ' + intensity + '<br>Lat: ' + lat + '<br>Lng: ' + lng + '</div>';
     }
 
-    function buildSignificantPoints(points) {
+    function colorForRatio(ratio) {
+        if (ratio >= 0.82) {
+            return '#d62828';
+        }
+        if (ratio >= 0.62) {
+            return '#f08a24';
+        }
+        if (ratio >= 0.42) {
+            return '#f0d43a';
+        }
+        if (ratio >= 0.2) {
+            return '#7fd34e';
+        }
+        return '#1f9d55';
+    }
+
+    function buildSignificantPoints(points, maxCells) {
         const normalized = points.map(function (point) {
             return {
                 point: point,
@@ -221,24 +319,51 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         });
 
+        const sortedByIntensity = normalized
+            .slice()
+            .sort(function (left, right) {
+                return right.intensity - left.intensity;
+            });
+
+        if (sortedByIntensity.length <= maxCells) {
+            const directMaxIntensity = Math.max.apply(null, sortedByIntensity.map(function (item) { return item.intensity; }).concat([0.01]));
+            return {
+                maxIntensity: directMaxIntensity,
+                threshold: 0,
+                items: sortedByIntensity.map(function (item) {
+                    return {
+                        point: item.point,
+                        ratio: item.intensity / directMaxIntensity,
+                    };
+                }),
+            };
+        }
+
         const maxIntensity = Math.max.apply(null, normalized.map(function (item) { return item.intensity; }).concat([0.01]));
         const sortedRatios = normalized
             .map(function (item) { return item.intensity / maxIntensity; })
             .sort(function (left, right) { return left - right; });
 
-        const percentileIndex = Math.max(0, Math.floor((sortedRatios.length - 1) * 0.8));
-        let threshold = Math.max(0.22, sortedRatios[percentileIndex] || 0);
+        const percentileIndex = Math.max(0, Math.floor((sortedRatios.length - 1) * 0.7));
+        let threshold = Math.max(0.14, sortedRatios[percentileIndex] || 0);
 
         let significant = normalized.filter(function (item) {
             return (item.intensity / maxIntensity) >= threshold;
         });
 
-        if (significant.length < 8) {
-            threshold = Math.max(0.14, sortedRatios[Math.floor((sortedRatios.length - 1) * 0.6)] || 0);
+        const minimumDesired = Math.min(maxCells, Math.max(8, Math.ceil(normalized.length * 0.35)));
+        if (significant.length < minimumDesired) {
+            threshold = Math.max(0.08, sortedRatios[Math.max(0, sortedRatios.length - minimumDesired)] || 0);
             significant = normalized.filter(function (item) {
                 return (item.intensity / maxIntensity) >= threshold;
             });
         }
+
+        significant = significant
+            .sort(function (left, right) {
+                return right.intensity - left.intensity;
+            })
+            .slice(0, maxCells);
 
         return {
             maxIntensity: maxIntensity,
@@ -252,75 +377,64 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 
-    function renderPoints(points) {
-        if (!mapContainer) {
-            return;
-        }
-
-        if (!Array.isArray(points) || !points.length) {
-            resetDetails();
-            showFeedback('No heatmap points returned', 'The job completed, but the AI service returned no density cells for the selected filters.');
-            return;
-        }
-
+    function renderPoints(points, meta) {
         const map = ensureMap();
-        if (!map || !state.mapLayerGroup || typeof window.L.heatLayer !== 'function') {
-            showFeedback('Map failed to load', 'Leaflet map assets are not available, so geographic rendering could not start.');
+        if (!mapContainer || !map || !state.mapLayerGroup) {
             return;
         }
 
         hideFeedback();
-        const significant = buildSignificantPoints(points);
-        const bounds = [];
-
         state.mapLayerGroup.clearLayers();
-        if (state.heatLayer) {
-            state.map.removeLayer(state.heatLayer);
-            state.heatLayer = null;
-        }
+        state.renderedPoints = [];
+        state.markerByCellId = {};
 
-        const heatData = [];
+        if (!Array.isArray(points) || !points.length) {
+            resetDetails();
+            map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
+            window.setTimeout(function () {
+                map.invalidateSize();
+            }, 0);
+            return;
+        }
+        const totalViolations = Number(meta?.total_violations) || 0;
+        const maxVisibleCells = totalViolations > 0
+            ? Math.min(60, Math.max(12, Math.ceil(totalViolations * 0.35)))
+            : Math.min(20, Math.max(10, points.length));
+        const significant = buildSignificantPoints(points, maxVisibleCells);
+        state.renderedPoints = significant.items.map(function (entry) { return entry.point; });
+        const bounds = [];
 
         significant.items.forEach(function (entry) {
             const point = entry.point;
             const lat = Number(point.lat);
             const lng = Number(point.lng);
-            const ratio = entry.ratio;
+            const relativeRatio = (entry.ratio - significant.threshold) / Math.max(1 - significant.threshold, 0.001);
+            const ratio = Math.max(0.2, Math.pow(Math.max(relativeRatio, 0), 0.75));
+            const fillColor = colorForRatio(ratio);
             const marker = window.L.circleMarker([lat, lng], {
-                radius: 7,
-                stroke: false,
-                fillOpacity: 0.02,
+                radius: 7 + Math.round(ratio * 8),
+                stroke: true,
+                weight: 2,
+                color: '#ffffff',
+                fillColor: fillColor,
+                fillOpacity: 0.82,
                 interactive: true,
             }).bindPopup(buildPopup(point));
 
             marker.on('click', function () {
-                setActivePoint(points, points.indexOf(point));
+                setActivePoint(state.renderedPoints, state.renderedPoints.indexOf(point));
             });
 
             marker.addTo(state.mapLayerGroup);
-            heatData.push([lat, lng, ratio]);
+            state.markerByCellId[String(point.cell_id || '')] = marker;
             bounds.push([lat, lng]);
         });
 
-        if (!heatData.length) {
+        if (!bounds.length) {
             resetDetails();
-            showFeedback('No strong clusters detected', 'The AI result exists, but no cells passed the display threshold for visible density clusters.');
+            map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
             return;
         }
-
-        state.heatLayer = window.L.heatLayer(heatData, {
-            radius: 34,
-            blur: 28,
-            maxZoom: 17,
-            minOpacity: 0.12,
-            gradient: {
-                0.20: '#dff2e5',
-                0.40: '#9ed9ae',
-                0.60: '#58b777',
-                0.78: '#1d7f4c',
-                1.0: '#083b23',
-            },
-        }).addTo(map);
 
         if (bounds.length === 1) {
             map.setView(bounds[0], 13);
@@ -332,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function () {
             map.invalidateSize();
         }, 0);
 
-        setActivePoint(points, points.indexOf(significant.items[0].point));
+        setActivePoint(state.renderedPoints, state.renderedPoints.indexOf(significant.items[0].point));
     }
 
     function applyResult(job) {
@@ -347,7 +461,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (nodes.timelineRange) nodes.timelineRange.textContent = (meta.date_from || '-') + ' to ' + (meta.date_to || '-');
         if (nodes.timelineTimeBucket) nodes.timelineTimeBucket.textContent = meta.time_bucket || 'All day';
 
-        renderPoints(points);
+        renderPoints(points, meta);
+
         renderRanking(payload.ranking || []);
         renderTrend(payload.trend || []);
     }

@@ -15,8 +15,10 @@ class ViolationLocationResource extends JsonResource
     public function toArray(Request $request): array
     {
         $cityRelation = $this->cityRecord;
+        $areaRelation = $this->resource->relationLoaded('area') ? $this->area : null;
         $cityName = null;
         $cityPayload = null;
+        $areaName = $areaRelation ? $areaRelation->name : null;
 
         if ($cityRelation) {
             $cityPayload = [
@@ -41,6 +43,7 @@ class ViolationLocationResource extends JsonResource
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
             'city_name' => $cityName,
+            'area_name' => $areaName,
         ];
     }
 }

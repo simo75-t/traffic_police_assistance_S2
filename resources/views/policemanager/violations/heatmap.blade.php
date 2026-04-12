@@ -2,7 +2,7 @@
 
 @section('title', 'Violation Heatmap')
 @section('page_title', 'Violation Heatmap')
-@section('page_description', 'Generate AI heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
+@section('page_description', 'Generate heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
 
 @section('content')
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}">
@@ -17,11 +17,11 @@
     >
         <section class="heatmap-hero">
             <div class="heatmap-hero__content">
-                <span class="heatmap-eyebrow">AI Analytics Pipeline</span>
-                <h1>Traffic Violation Heatmap</h1>
+                <span class="heatmap-eyebrow">Analytics</span>
+                <h1>Traffic Violation Hotspots</h1>
                 <p>
-                    Submit an AI heatmap job to the Django analytics service, monitor its processing state,
-                    and inspect density points, ranking summaries, and trend comparisons from the completed run.
+                    Generate hotspot cells from real violation locations for the selected city and period.
+                    Higher intensity means nearby violations are more concentrated.
                 </p>
             </div>
 
@@ -31,7 +31,7 @@
                     <strong id="job-status-chip">Idle</strong>
                 </div>
                 <div class="hero-chip">
-                    <span class="hero-chip__label">Heatmap Points</span>
+                    <span class="hero-chip__label">Hotspot Cells</span>
                     <strong id="points-count-chip">0</strong>
                 </div>
             </div>
@@ -41,7 +41,7 @@
             <div class="panel-heading">
                 <div>
                     <h2>Generate Heatmap</h2>
-                    <p>Choose the city, period, and analysis options to queue a new AI heatmap job.</p>
+                    <p>Choose the city, period, and optional analysis sections.</p>
                 </div>
             </div>
 
@@ -69,7 +69,7 @@
                 <div class="field">
                     <label for="violation_type_id">Violation Type</label>
                     <select id="violation_type_id" name="violation_type_id">
-                        <option value="">All Types</option>
+                        <option value="">All Types (combined)</option>
                         @foreach($violationTypes as $type)
                             <option value="{{ $type->id }}" @selected((string) ($filters['violation_type_id'] ?? '') === (string) $type->id)>
                                 {{ $type->name }}
@@ -108,10 +108,6 @@
                         <input type="checkbox" name="include_trend" value="1" @checked(($filters['include_trend'] ?? '0') === '1')>
                         <span>Include trend</span>
                     </label>
-                    <label class="toggle">
-                        <input type="checkbox" name="include_synthetic" value="1" @checked(($filters['include_synthetic'] ?? '0') === '1')>
-                        <span>Include synthetic</span>
-                    </label>
                 </div>
 
                 <div class="heatmap-filters__actions">
@@ -120,14 +116,14 @@
                 </div>
             </form>
 
-            <p class="helper-note">Grid sizing is controlled by the AI worker configuration, not from this screen.</p>
+            <p class="helper-note">Demo hotspot support is always included in the analysis pipeline.</p>
         </section>
 
         <section class="heatmap-stats">
             <article class="metric-card">
                 <span class="metric-card__label">Job ID</span>
                 <strong class="metric-card__value metric-card__value--small" id="metric-job-id">Not started</strong>
-                <p class="metric-card__hint">Latest queued or completed AI request.</p>
+                <p class="metric-card__hint">Latest queued or completed heatmap request.</p>
             </article>
 
             <article class="metric-card">
@@ -148,8 +144,8 @@
                 <section class="heatmap-panel">
                     <div class="panel-heading panel-heading--stack">
                         <div>
-                            <h2>Density Points</h2>
-                            <p>Each marker represents a generated heatmap cell returned by the AI worker.</p>
+                            <h2>Hotspot Cells</h2>
+                            <p>Markers represent hotspot cells, not individual violations. More violations can still be grouped into a smaller number of nearby cells.</p>
                         </div>
                         <div class="heatmap-legend">
                             <span>Low</span>
@@ -161,7 +157,7 @@
                     <div id="heatmap-feedback" class="heatmap-empty heatmap-empty--inline">
                         <div class="heatmap-empty__icon">!</div>
                         <h2>No analysis result yet</h2>
-                        <p>Submit a heatmap request to populate AI-generated density points.</p>
+                        <p>Submit a heatmap request to populate generated hotspot cells.</p>
                     </div>
 
                     <div id="heatmap-stage" class="heatmap-stage is-hidden">
@@ -174,12 +170,13 @@
                 <section class="heatmap-panel heatmap-panel--compact">
                     <div class="panel-heading">
                         <div>
-                            <h2>Selected Point</h2>
-                            <p>Click any point to inspect its coordinates and intensity.</p>
+                            <h2>Selected Cell</h2>
+                            <p>Click any cell to inspect its coordinates and intensity.</p>
                         </div>
                     </div>
 
                     <div class="details-card">
+                        <div class="details-card__row"><span>Area</span><strong id="detail-area">-</strong></div>
                         <div class="details-card__row"><span>Cell ID</span><strong id="detail-cell-id">-</strong></div>
                         <div class="details-card__row"><span>Latitude</span><strong id="detail-lat">-</strong></div>
                         <div class="details-card__row"><span>Longitude</span><strong id="detail-lng">-</strong></div>
@@ -191,7 +188,7 @@
                     <div class="panel-heading">
                         <div>
                             <h2>Top Ranking</h2>
-                            <p>Hotspots returned by the AI ranking payload.</p>
+                            <p>Hotspots returned by the ranking payload.</p>
                         </div>
                     </div>
                     <div id="ranking-list" class="hotspot-list">
@@ -203,11 +200,11 @@
                     <div class="panel-heading">
                         <div>
                             <h2>Trend</h2>
-                            <p>Comparative trend rows from the generated result.</p>
+                            <p>Cells with a meaningful increase or decrease compared with the previous period.</p>
                         </div>
                     </div>
                     <div id="trend-list" class="trend-list">
-                        <div class="empty-state">Trend data will appear here.</div>
+                        <div class="empty-state">Enable trend analysis to compare this period with the previous one.</div>
                     </div>
                 </section>
             </aside>
@@ -217,7 +214,7 @@
             <div class="panel-heading">
                 <div>
                     <h2>Job Timeline</h2>
-                    <p>Current lifecycle and response details from the AI queue.</p>
+                    <p>Current lifecycle and response details from the queue.</p>
                 </div>
             </div>
 
@@ -232,6 +229,5 @@
     </div>
 
     <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
-    <script src="{{ asset('vendor/leaflet/leaflet-heat.js') }}"></script>
     <script src="{{ asset('pm-assets/heatmap.js') }}"></script>
 @endsection

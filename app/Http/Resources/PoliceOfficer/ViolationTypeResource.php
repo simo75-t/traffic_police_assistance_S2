@@ -19,6 +19,7 @@ class ViolationTypeResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description ,
             'fine_amount' => $this->fine_amount ,
+            'severity_weight' => $this->severity_weight,
         ];
     }
 }
