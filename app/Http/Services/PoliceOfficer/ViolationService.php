@@ -37,7 +37,7 @@ class ViolationService
     public function getViolationList()
     {
         $violations = Violation::where('reported_by', Auth::id())
-            ->with(['violationLocation.city', 'violationType', 'vehicle'])
+            ->with(['violationLocation.city', 'violationLocation.area', 'violationType', 'vehicle'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -126,7 +126,7 @@ class ViolationService
 
     public function getAllViolationList(array $params = [])
 {
-    $violations = Violation::with(['violationLocation.city', 'violationType', 'vehicle'])
+    $violations = Violation::with(['violationLocation.city', 'violationLocation.area', 'violationType', 'vehicle'])
         ->when(isset($params['plate']) && $params['plate'] !== '', function ($q) use ($params) {
             $q->whereHas('vehicle', function ($q2) use ($params) {
                 $q2->where('plate_number', 'like', '%' . $params['plate'] . '%');
@@ -137,6 +137,20 @@ class ViolationService
         })
         ->when(isset($params['to']) && $params['to'] !== '', function ($q) use ($params) {
             $q->whereDate('occurred_at', '<=', $params['to']);
+        })
+        ->when(isset($params['violation_type_id']) && $params['violation_type_id'] !== '', function ($q) use ($params) {
+            $q->where('violation_type_id', (int) $params['violation_type_id']);
+        })
+        ->when(isset($params['city']) && trim((string) $params['city']) !== '', function ($q) use ($params) {
+            $requestedCity = $this->normalizeCityName((string) $params['city']);
+
+            $q->whereHas('violationLocation', function ($locationQuery) use ($requestedCity) {
+                $locationQuery
+                    ->whereRaw('LOWER(city) = ?', [$requestedCity])
+                    ->orWhereHas('cityRecord', function ($cityQuery) use ($requestedCity) {
+                        $cityQuery->whereRaw('LOWER(name) = ?', [$requestedCity]);
+                    });
+            });
         })
         ->orderBy(
             $params['order_by'] ?? 'occurred_at',

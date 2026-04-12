@@ -35,7 +35,7 @@ class HeatmapService
             'grid_size_meters' => (int) ($validated['grid_size_meters'] ?? 300),
             'include_ranking' => (bool) ($validated['include_ranking'] ?? false),
             'include_trend' => $includeTrend,
-            'include_synthetic' => (bool) ($validated['include_synthetic'] ?? false),
+            'include_synthetic' => true,
             'comparison_mode' => $comparisonMode,
         ];
 
