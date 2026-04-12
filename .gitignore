@@ -26,3 +26,6 @@ node_modules/
 vendor/
 public/build/
 
+# Ignore workspace plan file
+SYSTEM_LEARNING_AND_TEST_PLAN.txt
+
