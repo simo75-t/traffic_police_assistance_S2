@@ -8,6 +8,7 @@ import '../../widgets/violation_card.dart';
 import '../../utils/data_utils.dart';
 import '../profile/profile_page.dart';
 import 'add_fine_page.dart';
+import 'dispatch_assignments_page.dart';
 import 'violation_details_page.dart';
 import 'my_violation.dart';
 import 'violations_search_page.dart';
@@ -273,6 +274,22 @@ class _HomePageState extends State<HomePage> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const MyViolationsPage(),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _SecondaryActionButton(
+                      title: 'Dispatch',
+                      subtitle: 'Active citizen reports assigned to you',
+                      icon: Icons.notifications_active,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DispatchAssignmentsPage(),
                           ),
                         );
                       },

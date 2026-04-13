@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import '../models/dispatch_assignment.dart';
 import '../models/profile.dart';
 import '../models/vehicle_ocr_result.dart';
 import '../models/violation.dart';
@@ -114,6 +115,51 @@ class ApiService {
       }
       return false;
     }
+  }
+
+  static Future<void> updateFcmToken(String token, String fcmToken) async {
+    await _sendJson(
+      method: 'POST',
+      path: '/fcm-token',
+      token: token,
+      body: {
+        'fcm_token': fcmToken,
+      },
+    );
+  }
+
+  static Future<List<DispatchAssignment>> getDispatchAssignments(String token) async {
+    final res = await _sendJson(
+      method: 'GET',
+      path: '/officers/assignments',
+      token: token,
+    );
+
+    final decoded = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
+    final listJson = _extractList(decoded);
+
+    return listJson
+        .map((item) => _toMapItem(item))
+        .whereType<Map<String, dynamic>>()
+        .map(DispatchAssignment.fromJson)
+        .toList();
+  }
+
+  static Future<void> respondToReportAssignment(
+    String token, {
+    required int reportId,
+    required String response,
+    String? notes,
+  }) async {
+    await _sendJson(
+      method: 'POST',
+      path: '/officers/reports/$reportId/respond',
+      token: token,
+      body: {
+        'response': response,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
   }
 
   static Future<List<dynamic>> getCities(String token) async {

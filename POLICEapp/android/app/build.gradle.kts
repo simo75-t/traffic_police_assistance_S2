@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    id("com.google.gms.google-services")
     // Flutter Gradle Plugin (يجب أن يكون بعد Android و Kotlin)
     id("dev.flutter.flutter-gradle-plugin")
 }
