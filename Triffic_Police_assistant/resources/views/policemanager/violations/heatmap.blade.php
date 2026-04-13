@@ -2,7 +2,7 @@
 
 @section('title', 'Violation Heatmap')
 @section('page_title', 'Violation Heatmap')
-@section('page_description', 'Generate  heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
+@section('page_description', 'Generate heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
 
 @section('content')
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}">
@@ -123,7 +123,7 @@
             <article class="metric-card">
                 <span class="metric-card__label">Job ID</span>
                 <strong class="metric-card__value metric-card__value--small" id="metric-job-id">Not started</strong>
-                <p class="metric-card__hint">Latest queued or completed ai request.</p>
+                <p class="metric-card__hint">Latest queued or completed  request.</p>
             </article>
 
             <article class="metric-card">
