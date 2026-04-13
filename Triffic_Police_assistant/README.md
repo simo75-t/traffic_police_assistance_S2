@@ -1,59 +1,110 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Traffic Police Assistance S2
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Team Members
+- tasnim dakak
+- maryam almasri
 
-## About Laravel
+## Project Description
+A system enhanced with AI for managing traffic violations. It enables officers to record violations using voice input, automatically extract license plate numbers from images, and generate structured reports. The system improves accuracy, reduces manual work, and streamlines violation and appeal management.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## System Map / خريطة النظام
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Structure / الهيكلية
+- `Triffic_Police_assistant`
+  - Laravel PHP web application for police managers, admin, and citizen workflows.
+  - Contains web UI, API routes, database seeders, and business logic.
+- `django_ai_service`
+  - Django backend for AI services: heatmap generation, OCR, STT, and worker execution.
+  - Provides data extraction, event processing, and asynchronous job workers.
+- `POLICEapp`
+  - Flutter mobile application for cross-platform police/citizen client usage.
+  - Contains mobile UI and native integration logic.
 
-## Learning Laravel
+### Workflow / سير البيانات
+1. Users interact with the mobile app or web application.
+2. The Laravel app handles authentication, violation records, and UI flows.
+3. The AI backend processes images, voice data, and heatmap jobs.
+4. Results are stored and displayed through the web/mobile interfaces.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Requirements / متطلبات التنفيذ
 
-## Laravel Sponsors
+### Backend / خادم بايثون
+- Python 3.11 or later
+- virtualenv or venv
+- `pip install -r django_ai_service/requirements.txt`
+- SQL databases such as MySQL, PostgreSQL, or SQLite
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Laravel / PHP
+- PHP 8.x
+- Composer
+- Web server such as Apache or Nginx (optional)
+- MySQL or MariaDB
 
-### Premium Partners
+### Flutter / Mobile
+- Flutter SDK
+- Android SDK and/or Xcode based on the target platform
+- `flutter pub get`
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+---
 
-## Contributing
+## Setup Steps / خطوات التنفيذ
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 1. Clone the repository
+```bash
+git clone https://github.com/simo75-t/traffic_police_assistance_S2.git
+cd "TPA -2-"
+```
 
-## Code of Conduct
+### 2. Confirm branch
+```bash
+git checkout main
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 3. Prepare `django_ai_service`
+```bash
+cd django_ai_service
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-## Security Vulnerabilities
+Set local values in `.env`.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 4. Prepare `Triffic_Police_assistant`
+```bash
+cd ..\Triffic_Police_assistant
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+```
 
-## License
+Update database and connection settings in `.env`.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### 5. Prepare `POLICEapp`
+```bash
+cd ..\POLICEapp
+flutter pub get
+```
+
+Run the app with `flutter run` or open it in your Flutter editor.
+
+### 6. Run background services
+- Heatmap worker:
+```bash
+cd ..\django_ai_service
+.\.venv\Scripts\activate
+python manage.py run_heatmap_worker
+```
+- OCR worker:
+```bash
+python manage.py run_ocr_worker
+```
+- STT worker:
+```bash
+python manage.py run_stt_worker
+```

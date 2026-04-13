@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('heatmap-form');
     const generateButton = document.getElementById('generate-button');
     const pollButton = document.getElementById('poll-button');
+    const comparisonModeField = document.getElementById('comparison_mode');
+    const includeTrendField = form ? form.querySelector('input[name="include_trend"]') : null;
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const generateUrl = app.dataset.generateUrl;
     const resultUrlTemplate = app.dataset.resultUrlTemplate || '';
@@ -105,6 +107,10 @@ document.addEventListener('DOMContentLoaded', function () {
             return 'City, from date, and to date are required.';
         }
 
+        if (payload.date_from > payload.date_to) {
+            return 'From date cannot be after to date.';
+        }
+
         if (payload.include_trend && !payload.comparison_mode) {
             return 'Comparison mode is required when trend analysis is enabled.';
         }
@@ -138,6 +144,42 @@ document.addEventListener('DOMContentLoaded', function () {
         if (nodes.detailLat) nodes.detailLat.textContent = '-';
         if (nodes.detailLng) nodes.detailLng.textContent = '-';
         if (nodes.detailIntensity) nodes.detailIntensity.textContent = '-';
+    }
+
+    function syncTrendControls() {
+        if (!comparisonModeField || !includeTrendField) {
+            return;
+        }
+
+        const trendEnabled = includeTrendField.checked;
+        comparisonModeField.disabled = !trendEnabled;
+
+        if (!trendEnabled) {
+            comparisonModeField.value = '';
+        }
+    }
+
+    async function parseJsonResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = contentType.toLowerCase().includes('application/json');
+
+        if (isJson) {
+            return response.json();
+        }
+
+        const text = await response.text();
+
+        if (!text) {
+            return {};
+        }
+
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            return {
+                message: text,
+            };
+        }
     }
 
     function escapeHtml(value) {
@@ -253,6 +295,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function setActivePoint(points, index) {
         const point = points[index];
+        const lat = Number(point?.lat);
+        const lng = Number(point?.lng);
+        const intensity = Number(point?.intensity);
+
         if (!point) {
             resetDetails();
             return;
@@ -260,9 +306,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (nodes.detailArea) nodes.detailArea.textContent = displayAreaLabel(point);
         if (nodes.detailCellId) nodes.detailCellId.textContent = point.cell_id || '-';
-        if (nodes.detailLat) nodes.detailLat.textContent = typeof point.lat === 'number' ? point.lat.toFixed(6) : '-';
-        if (nodes.detailLng) nodes.detailLng.textContent = typeof point.lng === 'number' ? point.lng.toFixed(6) : '-';
-        if (nodes.detailIntensity) nodes.detailIntensity.textContent = typeof point.intensity === 'number' ? point.intensity.toFixed(3) : '-';
+        if (nodes.detailLat) nodes.detailLat.textContent = Number.isFinite(lat) ? lat.toFixed(6) : '-';
+        if (nodes.detailLng) nodes.detailLng.textContent = Number.isFinite(lng) ? lng.toFixed(6) : '-';
+        if (nodes.detailIntensity) nodes.detailIntensity.textContent = Number.isFinite(intensity) ? intensity.toFixed(3) : '-';
     }
 
     function ensureMap() {
@@ -390,17 +436,39 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!Array.isArray(points) || !points.length) {
             resetDetails();
+            showFeedback('No hotspot cells returned', 'The analysis completed, but no hotspot cells were generated for the selected filters.');
             map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
             window.setTimeout(function () {
                 map.invalidateSize();
             }, 0);
             return;
         }
+
+        const normalizedPoints = points.map(function (point) {
+            return Object.assign({}, point, {
+                lat: Number(point?.lat),
+                lng: Number(point?.lng),
+                intensity: Number(point?.intensity) || 0,
+            });
+        }).filter(function (point) {
+            return Number.isFinite(point.lat) && Number.isFinite(point.lng);
+        });
+
+        if (!normalizedPoints.length) {
+            resetDetails();
+            showFeedback('Invalid hotspot coordinates', 'The AI response did not contain usable coordinates for map rendering.');
+            map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
+            window.setTimeout(function () {
+                map.invalidateSize();
+            }, 0);
+            return;
+        }
+
         const totalViolations = Number(meta?.total_violations) || 0;
         const maxVisibleCells = totalViolations > 0
             ? Math.min(60, Math.max(12, Math.ceil(totalViolations * 0.35)))
-            : Math.min(20, Math.max(10, points.length));
-        const significant = buildSignificantPoints(points, maxVisibleCells);
+            : Math.min(20, Math.max(10, normalizedPoints.length));
+        const significant = buildSignificantPoints(normalizedPoints, maxVisibleCells);
         state.renderedPoints = significant.items.map(function (entry) { return entry.point; });
         const bounds = [];
 
@@ -481,11 +549,16 @@ document.addEventListener('DOMContentLoaded', function () {
             credentials: 'same-origin',
         });
 
-        const result = await response.json();
+        const result = await parseJsonResponse(response);
         const status = String(result.status || '').toLowerCase();
         const errorMessage = Array.isArray(result.error) ? result.error.join(', ') : (result.error || '');
 
         setStatus(status || 'queued', errorMessage);
+
+        if (!response.ok) {
+            showFeedback('Result request failed', result.message || errorMessage || 'Failed to load the heatmap result.');
+            return;
+        }
 
         if (status === 'queued' || status === 'processing' || status === 'pending') {
             showFeedback('Job in progress', 'The AI worker is still processing this request. Polling will continue automatically.');
@@ -516,6 +589,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         setBusy(true);
+        clearTimer();
+        state.jobId = '';
+        state.renderedPoints = [];
+        state.markerByCellId = {};
+        if (nodes.metricJobId) nodes.metricJobId.textContent = 'Not started';
+        if (nodes.pointsCountChip) nodes.pointsCountChip.textContent = '0';
+        resetDetails();
         setStatus('queued', '');
         showFeedback('Queueing job', 'The heatmap job is being submitted to the AI queue.');
 
@@ -532,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 credentials: 'same-origin',
             });
 
-            const result = await response.json();
+            const result = await parseJsonResponse(response);
 
             if (!response.ok) {
                 const message = result.message || (result.errors ? JSON.stringify(result.errors) : 'Failed to queue the heatmap job.');
@@ -568,5 +648,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    if (includeTrendField) {
+        includeTrendField.addEventListener('change', syncTrendControls);
+    }
+
+    syncTrendControls();
     resetDetails();
 });
