@@ -13,15 +13,15 @@ AI_RMQ_OCR_ROUTING_KEY = "job.ocr.create"
 AI_RMQ_HEATMAP_QUEUE = "ai.heatmap.jobs"
 AI_RMQ_HEATMAP_ROUTING_KEY = "analytics.generate_heatmap"
 
-LARAVEL_BASE_URL = "http:// 172.20.10.8:8000"
+LARAVEL_BASE_URL = "http://192.168.0.122:8000"
 LARAVEL_API_PREFIX = "/api"
-LARAVEL_VIOLATIONS_API = "http:// 172.20.10.8:8000/api/ai_violations"
+LARAVEL_VIOLATIONS_API = "http://192.168.0.122:8000/api/ai_violations"
 LARAVEL_API_TIMEOUT = 30
 
 WHISPER_MODEL_NAME = "medium"
 WHISPER_LANGUAGE = "ar"
 
-LMSTUDIO_BASE_URL = "http:// 172.20.10.8:1234"
+LMSTUDIO_BASE_URL = "http://192.168.0.122:1234"
 LMSTUDIO_MODEL = "mistralai/mistral-7b-instruct-v0.3"
 LMSTUDIO_TIMEOUT = 120
 
