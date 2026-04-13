@@ -2,7 +2,7 @@
 
 @section('title', 'Violation Heatmap')
 @section('page_title', 'Violation Heatmap')
-@section('page_description', 'Generate AI heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
+@section('page_description', 'Generate  heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
 
 @section('content')
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}">
@@ -17,7 +17,7 @@
     >
         <section class="heatmap-hero">
             <div class="heatmap-hero__content">
-                <span class="heatmap-eyebrow">AI analytics</span>
+                <span class="heatmap-eyebrow">ai analytics</span>
                 <h1>Traffic Violation Hotspots</h1>
                 <p>
                     Generate hotspot cells from real violation locations for the selected city and period.
@@ -123,7 +123,7 @@
             <article class="metric-card">
                 <span class="metric-card__label">Job ID</span>
                 <strong class="metric-card__value metric-card__value--small" id="metric-job-id">Not started</strong>
-                <p class="metric-card__hint">Latest queued or completed AI request.</p>
+                <p class="metric-card__hint">Latest queued or completed ai request.</p>
             </article>
 
             <article class="metric-card">
