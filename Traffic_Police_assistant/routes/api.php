@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Citizen\ReportController as CitizenReportController;
 use App\Http\Controllers\PoliceOfficer\AuthController;
 use App\Http\Controllers\PoliceOfficer\CityController;
+use App\Http\Controllers\PoliceOfficer\DispatchController;
 use App\Http\Controllers\PoliceOfficer\OcrController;
 use App\Http\Controllers\PoliceOfficer\SttController;
 use App\Http\Controllers\PoliceOfficer\ViolationController;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 // Authentication Routes
 // Police officer
 Route::post("/login", [AuthController::class, "login"]);
+Route::post('/citizen/reports', [CitizenReportController::class, 'store']);
 
 Route::middleware(['auth:api'])->group(function () {
 
@@ -20,6 +23,7 @@ Route::middleware(['auth:api'])->group(function () {
 
 // Profile Routes 
 Route::get("/profile" ,[AuthController::class , "profile"])->name("profile info");
+Route::post('/fcm-token', [AuthController::class, 'updateFcmToken']);
 
 // violation Routes 
 Route::post("/create" ,[ ViolationController::class , "create" ]);
@@ -38,6 +42,9 @@ Route::get('/ocr/result/{job_id}', [OcrController::class, 'getOcrResult']);
 Route::post('/stt/transcribe', [SttController::class, 'requestStt']);
 Route::get('/stt/result/{job_id}', [SttController::class, 'getSttResult']);
 
+Route::post('/officers/live-location', [DispatchController::class, 'updateLocation']);
+Route::get('/officers/assignments', [DispatchController::class, 'myAssignments']);
+Route::post('/officers/reports/{report}/respond', [DispatchController::class, 'respond']);
 
 
 });

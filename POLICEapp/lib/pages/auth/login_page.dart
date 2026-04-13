@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/secure_storage.dart';
 import '../home/home_page.dart';
 
@@ -50,6 +51,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       await SecureStorage.saveAuthSession(token: token, tokenType: tokenType);
+      await NotificationService.syncTokenWithBackend();
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(

@@ -4,6 +4,7 @@
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\PoliceOfficer\UpdateFcmTokenRequest;
 use App\Http\Services\AuthService;
 use App\Http\Resources\ProfileResource;
 use App\Enums\RoleUserEnum;
@@ -57,6 +58,23 @@ class AuthController extends Controller
             'status_code' => 200,
             'message' => 'Logged out successfully',
             'data' => [],
+        ]);
+    }
+
+    public function updateFcmToken(UpdateFcmTokenRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->update([
+            'fcm_token' => $request->validated()['fcm_token'],
+            'last_seen_at' => now(),
+        ]);
+
+        return response()->json([
+            'status_code' => 200,
+            'message' => 'FCM token updated successfully',
+            'data' => [
+                'fcm_token_saved' => true,
+            ],
         ]);
     }
 }
