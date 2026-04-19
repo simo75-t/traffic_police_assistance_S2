@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies('*');
+
         $middleware->alias([
             'admin.role' => EnsureUserIsAdmin::class,
             'police.manager' => EnsureUserIsPoliceManager::class,

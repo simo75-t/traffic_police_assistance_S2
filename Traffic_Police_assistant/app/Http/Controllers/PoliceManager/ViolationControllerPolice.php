@@ -7,6 +7,7 @@ use App\Http\Requests\PoliceManager\ViolationHeatmapRequest;
 use App\Http\Requests\PoliceManager\ViolationIndexRequest;
 use App\Http\Resources\PoliceManager\ViolationListResource;
 use App\Http\Services\PoliceManager\ViolationService;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ViolationControllerPolice extends Controller
@@ -39,5 +40,10 @@ class ViolationControllerPolice extends Controller
             'policemanager.violations.heatmap',
             $this->violationService->getHeatmapPageData($request->validated()),
         );
+    }
+
+    public function map(Request $request): View
+    {
+        return view('policemanager.violations.map', $this->violationService->getReportsMapPageData($request->query()));
     }
 }

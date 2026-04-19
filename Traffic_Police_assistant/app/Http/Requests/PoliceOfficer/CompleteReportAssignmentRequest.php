@@ -4,7 +4,7 @@ namespace App\Http\Requests\PoliceOfficer;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class RespondToReportAssignmentRequest extends FormRequest
+class CompleteReportAssignmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,7 +14,6 @@ class RespondToReportAssignmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'response' => ['required', 'in:accept,reject'],
             'notes' => ['nullable', 'string'],
         ];
     }

@@ -10,6 +10,11 @@ class AreasSeeder extends Seeder
     public function run(): void
     {
         foreach ($this->areas() as $index => $area) {
+            if ($area['city'] === 'Damascus') {
+                $this->syncDamascusArea($area, $index);
+                continue;
+            }
+
             Area::query()->updateOrCreate(
                 [
                     'name' => $area['name'],
@@ -18,6 +23,63 @@ class AreasSeeder extends Seeder
                 $area + ['created_at' => now()->subDays(60 - ($index * 4))]
             );
         }
+    }
+
+    private function syncDamascusArea(array $area, int $index): void
+    {
+        $aliases = $this->damascusAliases()[$area['name']] ?? [$area['name']];
+        $payload = $area + ['created_at' => now()->subDays(60 - ($index * 4))];
+
+        $matches = Area::query()
+            ->where('city', 'Damascus')
+            ->whereIn('name', $aliases)
+            ->orderBy('id')
+            ->get();
+
+        if ($matches->isNotEmpty()) {
+            foreach ($matches as $match) {
+                $match->fill($payload);
+                $match->save();
+            }
+
+            return;
+        }
+
+        Area::query()->create($payload);
+    }
+
+    private function damascusAliases(): array
+    {
+        return [
+            'المالكي' => ['المالكي', 'Al-Malki', 'Al-Malki', 'Al Maliki', 'Al-Maliki'],
+            'أبو رمانة' => ['أبو رمانة', 'Abu Rummaneh'],
+            'المزة' => ['المزة', 'Mazzeh'],
+            'الحمراء' => ['الحمراء', 'Al-Hamra'],
+            'المزرعة' => ['المزرعة', 'Al-Mazraa'],
+            'القنوات' => ['القنوات', 'Al-Qanawat'],
+            'جوبر' => ['جوبر', 'Jobar'],
+            'ساروجة' => ['ساروجة', 'Sarouja'],
+            'اليرموك' => ['اليرموك', 'Yarmouk'],
+            'برزة' => ['برزة', 'ط¨ط±ط²ط©'],
+            'مساكن برزة' => ['مساكن برزة', 'ظ…ط³ط§ظƒظ† ط¨ط±ط²ط©'],
+            'القابون' => ['القابون', 'ط§ظ„ظ‚ط§ط¨ظˆظ†', 'Qaboun'],
+            'ركن الدين' => ['ركن الدين', 'ط±ظƒظ† ط§ظ„ط¯ظٹظ†', 'Rukn al-Din'],
+            'ساحة العباسيين' => ['ساحة العباسيين', 'ط³ط§ط­ط© ط§ظ„ط¹ط¨ط§ط³ظٹظٹظ†', 'Al-Qassaa'],
+            'الميدان' => ['الميدان', 'ط§ظ„ظ…ظٹط¯ط§ظ†', 'Al-Midan', 'Midan'],
+            'الشام الجديدة' => ['الشام الجديدة', 'ط§ظ„ط´ط§ظ… ط§ظ„ط¬ط¯ظٹط¯ط©'],
+            'دمر الغربية' => ['دمر الغربية', 'ط¯ظ…ط± ط§ظ„ط؛ط±ط¨ظٹط©', 'Dummar'],
+            'مزة جبل' => ['مزة جبل', 'ظ…ط²ط© ط¬ط¨ظ„'],
+            'مزة 86' => ['مزة 86', 'ظ…ط²ط© 86'],
+            'مزة فيلات غربية' => ['مزة فيلات غربية', 'ظ…ط²ط© ظپظٹظ„ط§طھ ط؛ط±ط¨ظٹط©'],
+            'كفرسوسة' => ['كفرسوسة', 'ظƒظپط±ط³ظˆط³ط©', 'Kafr Sousa'],
+            'ساحة الامويين' => ['ساحة الامويين', 'ط³ط§ط­ط© ط§ظ„ط§ظ…ظˆظٹظٹظ†'],
+            'تنظيم كفرسوسة' => ['تنظيم كفرسوسة', 'طھظ†ط¸ظٹظ… ظƒظپط±ط³ظˆط³ط©'],
+            'البرامكة' => ['البرامكة', 'ط§ظ„ط¨ط±ط§ظ…ظƒط©', 'Baramkeh'],
+            'باب مصلى' => ['باب مصلى', 'ط¨ط§ط¨ ظ…طµظ„ظ‰'],
+            'القدم' => ['القدم', 'ط§ظ„ظ‚ط¯ظ…'],
+            'الشاغور' => ['الشاغور', 'ط§ظ„ط´ط§ط؛ظˆط±', 'Al-Shaghour'],
+            'باب توما' => ['باب توما', 'ط¨ط§ط¨ طھظˆظ…ط§'],
+        ];
     }
 
     /**
@@ -91,6 +153,38 @@ class AreasSeeder extends Seeder
             ['name' => 'Jisr al-Shughur', 'city' => 'Idlib', 'center_lat' => 35.87756, 'center_lng' => 36.32901],
             ['name' => 'Maarrat al-Nu\'man', 'city' => 'Idlib', 'center_lat' => 35.53858, 'center_lng' => 36.79193],
             ['name' => 'Damascus', 'city' => 'Damascus', 'center_lat' => 33.51563, 'center_lng' => 36.28032],
+            ['name' => 'المالكي', 'city' => 'Damascus', 'center_lat' => 33.5182553, 'center_lng' => 36.2712047],
+            ['name' => 'كفرسوسة', 'city' => 'Damascus', 'center_lat' => 33.48461765471776, 'center_lng' => 36.267768120406416],
+            ['name' => 'المزة', 'city' => 'Damascus', 'center_lat' => 33.5021550, 'center_lng' => 36.2456866],
+            ['name' => 'أبو رمانة', 'city' => 'Damascus', 'center_lat' => 33.5179031, 'center_lng' => 36.2841402],
+            ['name' => 'البرامكة', 'city' => 'Damascus', 'center_lat' => 33.50748850562386, 'center_lng' => 36.28847201435723],
+            ['name' => 'الحمراء', 'city' => 'Damascus', 'center_lat' => 33.5131816, 'center_lng' => 36.3006549],
+            ['name' => 'المزرعة', 'city' => 'Damascus', 'center_lat' => 34.7275710, 'center_lng' => 36.6570553],
+            ['name' => 'القنوات', 'city' => 'Damascus', 'center_lat' => 33.5080612, 'center_lng' => 36.2847945],
+            ['name' => 'جوبر', 'city' => 'Damascus', 'center_lat' => 33.5278282, 'center_lng' => 36.3342014],
+            ['name' => 'ساروجة', 'city' => 'Damascus', 'center_lat' => 33.5173074, 'center_lng' => 36.2982652],
+            ['name' => 'اليرموك', 'city' => 'Damascus', 'center_lat' => 33.4724791, 'center_lng' => 36.3048029],
+            ['name' => 'حي الأمين', 'city' => 'Damascus', 'center_lat' => 33.5055802, 'center_lng' => 36.3142456],
+            ['name' => 'نهر عيشة', 'city' => 'Damascus', 'center_lat' => 33.4853962, 'center_lng' => 36.2874182],
+            ['name' => 'برزة', 'city' => 'Damascus', 'center_lat' => 33.55733414817135, 'center_lng' => 36.3118747861408],
+            ['name' => 'مساكن برزة', 'city' => 'Damascus', 'center_lat' => 33.544172444030806, 'center_lng' => 36.32037202417442],
+            ['name' => 'القابون', 'city' => 'Damascus', 'center_lat' => 33.54704259480129, 'center_lng' => 36.335903791092456],
+            ['name' => 'ركن الدين', 'city' => 'Damascus', 'center_lat' => 33.540143160620765, 'center_lng' => 36.299315364467994],
+            ['name' => 'ساحة العباسيين', 'city' => 'Damascus', 'center_lat' => 33.52564962903036, 'center_lng' => 36.30618841156575],
+            ['name' => 'الميدان', 'city' => 'Damascus', 'center_lat' => 33.490755531710136, 'center_lng' => 36.297968044518484],
+            ['name' => 'الشام الجديدة', 'city' => 'Damascus', 'center_lat' => 33.52938744770851, 'center_lng' => 36.23145780204516],
+            ['name' => 'دمر الغربية', 'city' => 'Damascus', 'center_lat' => 33.5168025299054, 'center_lng' => 36.24322292856479],
+            ['name' => 'مزة جبل', 'city' => 'Damascus', 'center_lat' => 33.505548886758675, 'center_lng' => 36.252091538576465],
+            ['name' => 'مزة 86', 'city' => 'Damascus', 'center_lat' => 33.50656003517311, 'center_lng' => 36.242946068581766],
+            ['name' => 'مزة فيلات غربية', 'city' => 'Damascus', 'center_lat' => 33.4955210255524, 'center_lng' => 36.23167844532863],
+            ['name' => 'كفرسوسة', 'city' => 'Damascus', 'center_lat' => 33.48461765471776, 'center_lng' => 36.267768120406416],
+            ['name' => 'ساحة الامويين', 'city' => 'Damascus', 'center_lat' => 33.51433011113321, 'center_lng' => 36.274784936786254],
+            ['name' => 'تنظيم كفرسوسة', 'city' => 'Damascus', 'center_lat' => 33.500483713797514, 'center_lng' => 36.27860134709502],
+            ['name' => 'البرامكة', 'city' => 'Damascus', 'center_lat' => 33.50748850562386, 'center_lng' => 36.28847201435723],
+            ['name' => 'باب مصلى', 'city' => 'Damascus', 'center_lat' => 33.49775121057897, 'center_lng' => 36.296101136352036],
+            ['name' => 'القدم', 'city' => 'Damascus', 'center_lat' => 33.47236554795264, 'center_lng' => 36.284134219444915],
+            ['name' => 'الشاغور', 'city' => 'Damascus', 'center_lat' => 33.48902717709692, 'center_lng' => 36.311161620989296],
+            ['name' => 'باب توما', 'city' => 'Damascus', 'center_lat' => 33.51128105787638, 'center_lng' => 36.31485550325062],
             ['name' => 'Al-Shaykh Badr', 'city' => 'Tartus', 'center_lat' => 35.04492, 'center_lng' => 36.09807],
             ['name' => 'Baniyas', 'city' => 'Tartus', 'center_lat' => 35.13698, 'center_lng' => 36.07864],
             ['name' => 'Duraykish', 'city' => 'Tartus', 'center_lat' => 34.93205, 'center_lng' => 36.12682],

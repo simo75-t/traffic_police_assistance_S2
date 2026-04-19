@@ -35,6 +35,7 @@
             background:
                 radial-gradient(circle at top right, rgba(212, 169, 58, 0.14), transparent 24%),
                 linear-gradient(180deg, #eff5f9 0%, #f9f5ed 100%);
+            overflow-x: hidden;
         }
 
         a {
@@ -46,6 +47,7 @@
             min-height: 100vh;
             display: grid;
             grid-template-columns: 280px 1fr;
+            align-items: start;
         }
 
         .sidebar {
@@ -55,6 +57,7 @@
             position: sticky;
             top: 0;
             height: 100vh;
+            overflow-y: auto;
         }
 
         .brand {
@@ -109,6 +112,7 @@
 
         .content {
             padding: 28px;
+            min-width: 0;
         }
 
         .page-header {
@@ -253,6 +257,43 @@
             gap: 12px;
         }
 
+        .map-panel {
+            min-height: 420px;
+            border-radius: 24px;
+            overflow: hidden;
+            border: 1px solid var(--pm-border);
+            background: #f7fbff;
+        }
+
+        .map-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .map-meta-card {
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            border-radius: 20px;
+            background: white;
+            border: 1px solid var(--pm-border);
+        }
+
+        .map-meta-card strong {
+            font-size: 1.8rem;
+            margin-top: 6px;
+            color: var(--pm-text);
+        }
+
+        .map-card-label {
+            color: var(--pm-muted);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            font-size: 0.82rem;
+        }
+
         select,
         input {
             width: 100%;
@@ -362,11 +403,13 @@
             .sidebar {
                 position: relative;
                 height: auto;
+                overflow: visible;
             }
 
             .stats-grid,
             .actions-grid,
-            .detail-grid {
+            .detail-grid,
+            .map-meta-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -375,6 +418,7 @@
             }
         }
     </style>
+    @yield('head')
 </head>
 <body>
     <div class="page-shell">
@@ -387,6 +431,7 @@
             <nav>
                 <a class="nav-link {{ request()->routeIs('policemanager.home') ? 'active' : '' }}" href="{{ route('policemanager.home') }}">Dashboard</a>
                 <a class="nav-link {{ request()->routeIs('policemanager.violations.index') ? 'active' : '' }}" href="{{ route('policemanager.violations.index') }}">Violations</a>
+                <a class="nav-link {{ request()->routeIs('policemanager.violations.map') ? 'active' : '' }}" href="{{ route('policemanager.violations.map') }}">Reports Map</a>
                 <a class="nav-link {{ request()->routeIs('policemanager.violations.heatmap') ? 'active' : '' }}" href="{{ route('policemanager.violations.heatmap') }}">Heatmap</a>
                 <a class="nav-link {{ request()->routeIs('policemanager.appeals.*') ? 'active' : '' }}" href="{{ route('policemanager.appeals.index') }}">Appeals</a>
             </nav>
@@ -416,5 +461,6 @@
             @yield('content')
         </main>
     </div>
+    @yield('scripts')
 </body>
 </html>

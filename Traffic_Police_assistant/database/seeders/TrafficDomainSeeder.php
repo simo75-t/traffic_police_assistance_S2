@@ -16,6 +16,8 @@ class TrafficDomainSeeder extends Seeder
             ReportLocationsSeeder::class,
             CitizenReportsSeeder::class,
             ViolationsSeeder::class,
+            DamascusViolationsSeeder::class,
+            DamascusAreaCleanupSeeder::class,
             AppealsSeeder::class,
             OfficerLiveLocationsSeeder::class,
             HeatmapAnalysisCacheSeeder::class,

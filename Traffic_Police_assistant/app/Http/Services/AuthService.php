@@ -46,4 +46,17 @@ class AuthService
     {
         return Auth::user();
     }
+
+    public function updateProfile(User $user, array $attrs): User
+    {
+        $user->fill([
+            'name' => $attrs['name'],
+            'email' => $attrs['email'],
+            'phone' => $attrs['phone'] ?? null,
+        ]);
+
+        $user->save();
+
+        return $user->fresh();
+    }
 }

@@ -20,7 +20,7 @@ class RabbitPublisher
             'exchange' => $exchange,
             'queue' => $queueName,
             'routing_key' => $routingKey,
-            'job_id' => $data['job_id'] ?? null,
+            'job_id' => $data['job_id'] ?? $data['request_id'] ?? null,
             'host' => $host,
             'port' => $port,
             'vhost' => $vhost,
@@ -55,7 +55,7 @@ class RabbitPublisher
             'exchange' => $exchange,
             'queue' => $queueName,
             'routing_key' => $routingKey,
-            'job_id' => $data['job_id'] ?? null,
+            'job_id' => $data['job_id'] ?? $data['request_id'] ?? null,
         ]);
 
         $ch->close();

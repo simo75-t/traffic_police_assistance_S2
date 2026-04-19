@@ -23,6 +23,7 @@ Route::middleware(['auth:api'])->group(function () {
 
 // Profile Routes 
 Route::get("/profile" ,[AuthController::class , "profile"])->name("profile info");
+Route::post("/profile/update" ,[AuthController::class , "updateProfile"]);
 Route::post('/fcm-token', [AuthController::class, 'updateFcmToken']);
 
 // violation Routes 
@@ -44,7 +45,8 @@ Route::get('/stt/result/{job_id}', [SttController::class, 'getSttResult']);
 
 Route::post('/officers/live-location', [DispatchController::class, 'updateLocation']);
 Route::get('/officers/assignments', [DispatchController::class, 'myAssignments']);
-Route::post('/officers/reports/{report}/respond', [DispatchController::class, 'respond']);
+Route::post('/officers/assignments/{assignment}/start', [DispatchController::class, 'start']);
+Route::post('/officers/assignments/{assignment}/complete', [DispatchController::class, 'complete']);
 
 
 });

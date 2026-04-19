@@ -13,7 +13,6 @@ class CitizenReport extends Model
     protected $fillable = [
         'reporter_name',
         'reporter_phone',
-        'reporter_email',
         'report_location_id',
         'title',
         'description',

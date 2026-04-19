@@ -37,6 +37,12 @@
             </article>
 
             <article class="action-card">
+                <h3>Reports Map</h3>
+                <p>Monitor live citizen reports on a map and inspect the current officer assignment and report status.</p>
+                <a class="btn btn-primary" href="{{ route('policemanager.violations.map') }}">Open Reports Map</a>
+            </article>
+
+            <article class="action-card">
                 <h3>View Appeals</h3>
                 <p>Review submitted appeals, inspect case details, and update the decision status from the list or the detailed page.</p>
                 <a class="btn btn-primary" href="{{ route('policemanager.appeals.index') }}">Open Appeals</a>

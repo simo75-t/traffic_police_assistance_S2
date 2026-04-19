@@ -5,7 +5,12 @@
 @section('page_description', 'Generate heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
 
 @section('content')
-    <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}">
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    >
     <link rel="stylesheet" href="{{ asset('pm-assets/heatmap.css') }}">
 
     <div
@@ -119,11 +124,34 @@
             <p class="helper-note">Demo hotspot support is always included in the analysis pipeline.</p>
         </section>
 
-        <section class="heatmap-stats">
+        <section class="heatmap-panel heatmap-panel--map">
+            <div class="panel-heading panel-heading--stack">
+                <div>
+                    <h2>Hotspot Cells</h2>
+                    <p>Markers represent hotspot cells, not individual violations. More violations can still be grouped into a smaller number of nearby cells.</p>
+                </div>
+                <div class="heatmap-legend">
+                    <span>Low</span>
+                    <div class="heatmap-legend__bar"></div>
+                    <span>High</span>
+                </div>
+            </div>
+
+            <div id="heatmap-stage" class="heatmap-stage">
+                <div id="heatmap-map" class="heatmap-map"></div>
+                <div id="heatmap-feedback" class="heatmap-empty heatmap-empty--overlay">
+                    <div class="heatmap-empty__icon">!</div>
+                    <h2>No analysis result yet</h2>
+                    <p>Submit a heatmap request to populate generated hotspot cells.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="heatmap-stats heatmap-stats--after-map">
             <article class="metric-card">
                 <span class="metric-card__label">Job ID</span>
                 <strong class="metric-card__value metric-card__value--small" id="metric-job-id">Not started</strong>
-                <p class="metric-card__hint">Latest queued or completed  request.</p>
+                <p class="metric-card__hint">Latest queued or completed request.</p>
             </article>
 
             <article class="metric-card">
@@ -139,95 +167,71 @@
             </article>
         </section>
 
-        <section class="heatmap-layout">
-            <div class="heatmap-main">
-                <section class="heatmap-panel">
-                    <div class="panel-heading panel-heading--stack">
-                        <div>
-                            <h2>Hotspot Cells</h2>
-                            <p>Markers represent hotspot cells, not individual violations. More violations can still be grouped into a smaller number of nearby cells.</p>
-                        </div>
-                        <div class="heatmap-legend">
-                            <span>Low</span>
-                            <div class="heatmap-legend__bar"></div>
-                            <span>High</span>
-                        </div>
+        <section class="heatmap-secondary">
+            <section class="heatmap-panel heatmap-panel--compact">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Selected Cell</h2>
+                        <p>Click any cell to inspect its coordinates and intensity.</p>
                     </div>
-
-                    <div id="heatmap-feedback" class="heatmap-empty heatmap-empty--inline">
-                        <div class="heatmap-empty__icon">!</div>
-                        <h2>No analysis result yet</h2>
-                        <p>Submit a heatmap request to populate generated hotspot cells.</p>
-                    </div>
-
-                    <div id="heatmap-stage" class="heatmap-stage is-hidden">
-                        <div id="heatmap-map" class="heatmap-map"></div>
-                    </div>
-                </section>
-            </div>
-
-            <aside class="heatmap-sidebar">
-                <section class="heatmap-panel heatmap-panel--compact">
-                    <div class="panel-heading">
-                        <div>
-                            <h2>Selected Cell</h2>
-                            <p>Click any cell to inspect its coordinates and intensity.</p>
-                        </div>
-                    </div>
-
-                    <div class="details-card">
-                        <div class="details-card__row"><span>Area</span><strong id="detail-area">-</strong></div>
-                        <div class="details-card__row"><span>Cell ID</span><strong id="detail-cell-id">-</strong></div>
-                        <div class="details-card__row"><span>Latitude</span><strong id="detail-lat">-</strong></div>
-                        <div class="details-card__row"><span>Longitude</span><strong id="detail-lng">-</strong></div>
-                        <div class="details-card__row"><span>Intensity</span><strong id="detail-intensity">-</strong></div>
-                    </div>
-                </section>
-
-                <section class="heatmap-panel heatmap-panel--compact">
-                    <div class="panel-heading">
-                        <div>
-                            <h2>Top Ranking</h2>
-                            <p>Hotspots returned by the ranking payload.</p>
-                        </div>
-                    </div>
-                    <div id="ranking-list" class="hotspot-list">
-                        <div class="empty-state">Ranking data will appear here.</div>
-                    </div>
-                </section>
-
-                <section class="heatmap-panel heatmap-panel--compact">
-                    <div class="panel-heading">
-                        <div>
-                            <h2>Trend</h2>
-                            <p>Cells with a meaningful increase or decrease compared with the previous period.</p>
-                        </div>
-                    </div>
-                    <div id="trend-list" class="trend-list">
-                        <div class="empty-state">Enable trend analysis to compare this period with the previous one.</div>
-                    </div>
-                </section>
-            </aside>
-        </section>
-
-        <section class="heatmap-panel heatmap-panel--compact">
-            <div class="panel-heading">
-                <div>
-                    <h2>Job Timeline</h2>
-                    <p>Current lifecycle and response details from the queue.</p>
                 </div>
-            </div>
 
-            <div class="details-card">
-                <div class="details-card__row"><span>Status</span><strong id="timeline-status">Idle</strong></div>
-                <div class="details-card__row"><span>Requested City</span><strong id="timeline-city">-</strong></div>
-                <div class="details-card__row"><span>Date Range</span><strong id="timeline-range">-</strong></div>
-                <div class="details-card__row"><span>Time Bucket</span><strong id="timeline-time-bucket">-</strong></div>
-                <div class="details-card__row"><span>Error</span><strong id="timeline-error">-</strong></div>
-            </div>
+                <div class="details-card">
+                    <div class="details-card__row"><span>Area</span><strong id="detail-area">-</strong></div>
+                    <div class="details-card__row"><span>Cell ID</span><strong id="detail-cell-id">-</strong></div>
+                    <div class="details-card__row"><span>Latitude</span><strong id="detail-lat">-</strong></div>
+                    <div class="details-card__row"><span>Longitude</span><strong id="detail-lng">-</strong></div>
+                    <div class="details-card__row"><span>Intensity</span><strong id="detail-intensity">-</strong></div>
+                </div>
+            </section>
+
+            <section class="heatmap-panel heatmap-panel--compact">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Top Ranking</h2>
+                        <p>Hotspots returned by the ranking payload.</p>
+                    </div>
+                </div>
+                <div id="ranking-list" class="hotspot-list">
+                    <div class="empty-state">Ranking data will appear here.</div>
+                </div>
+            </section>
+
+            <section class="heatmap-panel heatmap-panel--compact">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Trend</h2>
+                        <p>Cells with a meaningful increase or decrease compared with the previous period.</p>
+                    </div>
+                </div>
+                <div id="trend-list" class="trend-list">
+                    <div class="empty-state">Enable trend analysis to compare this period with the previous one.</div>
+                </div>
+            </section>
+
+            <section class="heatmap-panel heatmap-panel--compact">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Job Timeline</h2>
+                        <p>Current lifecycle and response details from the queue.</p>
+                    </div>
+                </div>
+
+                <div class="details-card">
+                    <div class="details-card__row"><span>Status</span><strong id="timeline-status">Idle</strong></div>
+                    <div class="details-card__row"><span>Requested City</span><strong id="timeline-city">-</strong></div>
+                    <div class="details-card__row"><span>Date Range</span><strong id="timeline-range">-</strong></div>
+                    <div class="details-card__row"><span>Time Bucket</span><strong id="timeline-time-bucket">-</strong></div>
+                    <div class="details-card__row"><span>Error</span><strong id="timeline-error">-</strong></div>
+                </div>
+            </section>
         </section>
     </div>
 
-    <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
     <script src="{{ asset('pm-assets/heatmap.js') }}"></script>
 @endsection

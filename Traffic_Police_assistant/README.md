@@ -108,3 +108,8 @@ python manage.py run_ocr_worker
 ```bash
 python manage.py run_stt_worker
 ```
+- Laravel AI result consumer:
+```bash
+cd ..\Traffic_Police_assistant
+php artisan ai:consume-results
+```

@@ -59,5 +59,4 @@ class SecureStorage {
   static Future<void> deleteFcmToken() async {
     await _storage.delete(key: _fcmTokenKey);
   }
-
 }

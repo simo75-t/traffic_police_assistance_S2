@@ -48,7 +48,7 @@ def ollama_extract_fields(
 ) -> Dict[str, Any]:
     """Extract a small set of structured traffic fields with Ollama."""
     prompt = f"""
-You are an information extraction system for traffic violation reports (Arabic).
+You are an information extraction system for Arabic traffic violation reports in Syria.
 Extract structured fields from the transcript.
 
 Return ONLY valid JSON. No markdown. No explanations. No extra keys.
@@ -56,7 +56,9 @@ Return ONLY valid JSON. No markdown. No explanations. No extra keys.
 Rules:
 - If a field is not mentioned, return null.
 - Keep Arabic names as-is.
-- description: short Arabic summary of the violation.
+- city_name must be a city/governorate name only, not a street.
+- violation_type_name must be a short Arabic label.
+- description must be one short Arabic summary of the violation.
 
 JSON schema (exact keys only):
 {{

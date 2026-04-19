@@ -26,6 +26,7 @@ class HeatmapService
         $payload = [
             'job_type' => 'generate_heatmap',
             'request_id' => $jobId,
+            'job_id' => $jobId,
             'correlation_id' => $corrId,
             'city' => trim((string) $validated['city']),
             'date_from' => (string) $validated['date_from'],

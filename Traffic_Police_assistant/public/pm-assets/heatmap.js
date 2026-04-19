@@ -127,15 +127,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (descriptionNode) descriptionNode.textContent = description;
             feedback.classList.remove('is-hidden');
         }
-
-        if (stage) {
-            stage.classList.add('is-hidden');
-        }
     }
 
     function hideFeedback() {
         if (feedback) feedback.classList.add('is-hidden');
-        if (stage) stage.classList.remove('is-hidden');
     }
 
     function resetDetails() {
@@ -328,6 +323,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }).addTo(state.map);
 
             state.mapLayerGroup = window.L.layerGroup().addTo(state.map);
+            state.map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
         }
 
         return state.map;
@@ -390,16 +386,16 @@ document.addEventListener('DOMContentLoaded', function () {
             .map(function (item) { return item.intensity / maxIntensity; })
             .sort(function (left, right) { return left - right; });
 
-        const percentileIndex = Math.max(0, Math.floor((sortedRatios.length - 1) * 0.7));
-        let threshold = Math.max(0.14, sortedRatios[percentileIndex] || 0);
+        const percentileIndex = Math.max(0, Math.floor((sortedRatios.length - 1) * 0.45));
+        let threshold = Math.max(0.05, sortedRatios[percentileIndex] || 0);
 
         let significant = normalized.filter(function (item) {
             return (item.intensity / maxIntensity) >= threshold;
         });
 
-        const minimumDesired = Math.min(maxCells, Math.max(8, Math.ceil(normalized.length * 0.35)));
+        const minimumDesired = Math.min(maxCells, Math.max(16, Math.ceil(normalized.length * 0.65)));
         if (significant.length < minimumDesired) {
-            threshold = Math.max(0.08, sortedRatios[Math.max(0, sortedRatios.length - minimumDesired)] || 0);
+            threshold = Math.max(0.03, sortedRatios[Math.max(0, sortedRatios.length - minimumDesired)] || 0);
             significant = normalized.filter(function (item) {
                 return (item.intensity / maxIntensity) >= threshold;
             });
@@ -425,7 +421,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderPoints(points, meta) {
         const map = ensureMap();
-        if (!mapContainer || !map || !state.mapLayerGroup) {
+        if (!mapContainer) {
+            return;
+        }
+
+        if (!map || !state.mapLayerGroup) {
+            showFeedback('Map unavailable', 'The heatmap result is ready, but the map library did not load. Refresh the page and try again.');
             return;
         }
 
@@ -466,8 +467,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const totalViolations = Number(meta?.total_violations) || 0;
         const maxVisibleCells = totalViolations > 0
-            ? Math.min(60, Math.max(12, Math.ceil(totalViolations * 0.35)))
-            : Math.min(20, Math.max(10, normalizedPoints.length));
+            ? Math.min(120, Math.max(20, Math.ceil(totalViolations * 0.6)))
+            : Math.min(40, Math.max(16, normalizedPoints.length));
         const significant = buildSignificantPoints(normalizedPoints, maxVisibleCells);
         state.renderedPoints = significant.items.map(function (entry) { return entry.point; });
         const bounds = [];
@@ -477,10 +478,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const lat = Number(point.lat);
             const lng = Number(point.lng);
             const relativeRatio = (entry.ratio - significant.threshold) / Math.max(1 - significant.threshold, 0.001);
-            const ratio = Math.max(0.2, Math.pow(Math.max(relativeRatio, 0), 0.75));
+            const ratio = Math.max(0.16, Math.pow(Math.max(relativeRatio, 0), 0.65));
             const fillColor = colorForRatio(ratio);
             const marker = window.L.circleMarker([lat, lng], {
-                radius: 7 + Math.round(ratio * 8),
+                radius: 6 + Math.round(ratio * 7),
                 stroke: true,
                 weight: 2,
                 color: '#ffffff',
@@ -650,6 +651,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (includeTrendField) {
         includeTrendField.addEventListener('change', syncTrendControls);
+    }
+
+    const initialMap = ensureMap();
+    if (initialMap) {
+        window.setTimeout(function () {
+            initialMap.invalidateSize();
+        }, 0);
     }
 
     syncTrendControls();

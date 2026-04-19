@@ -9,17 +9,20 @@ class CitizenReportResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $location = $this->whenLoaded('reportLocation');
-        $assignedOfficer = $this->whenLoaded('assignedOfficer');
+        $location = $this->whenLoaded('reportLocation') ?: $this->reportLocation;
+        $assignedOfficer = $this->assignedOfficer;
         $latestAssignment = $this->relationLoaded('assignments')
             ? $this->assignments->sortByDesc('assignment_order')->first()
             : null;
+
+        if (! $assignedOfficer && $latestAssignment) {
+            $assignedOfficer = $latestAssignment->officer;
+        }
 
         return [
             'id' => $this->id,
             'reporter_name' => $this->reporter_name,
             'reporter_phone' => $this->reporter_phone,
-            'reporter_email' => $this->reporter_email,
             'title' => $this->title,
             'description' => $this->description,
             'status' => $this->status,
@@ -51,10 +54,8 @@ class CitizenReportResource extends JsonResource
                 'officer_id' => $latestAssignment->officer_id,
                 'assignment_order' => $latestAssignment->assignment_order,
                 'distance_km' => $latestAssignment->distance_km,
-                'assignment_status' => $latestAssignment->assignment_status,
                 'assigned_at' => $latestAssignment->assigned_at,
                 'responded_at' => $latestAssignment->responded_at,
-                'response_deadline' => $latestAssignment->response_deadline,
                 'notes' => $latestAssignment->notes,
             ] : null,
         ];

@@ -12,8 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 class DispatchService
 {
-    private const LOCATION_FRESHNESS_SECONDS = 60;
-    private const RESPONSE_WINDOW_SECONDS = 60;
+    private const LOCATION_FRESHNESS_SECONDS = 300;
+    private const PENDING_RETRY_COOLDOWN_SECONDS = 30;
 
     public function __construct(
         private readonly FcmNotificationService $fcmNotificationService
@@ -31,13 +31,7 @@ class DispatchService
                 return null;
             }
 
-            $excludedIds = array_values(array_unique(array_filter([
-                ...$excludedOfficerIds,
-                ...$lockedReport->assignments()
-                    ->whereIn('assignment_status', ['rejected', 'expired'])
-                    ->pluck('officer_id')
-                    ->all(),
-            ])));
+            $excludedIds = array_values(array_unique(array_filter($excludedOfficerIds)));
 
             $candidate = $this->findNearestAvailableOfficer($lockedReport, $excludedIds);
 
@@ -58,9 +52,8 @@ class DispatchService
                 'officer_id' => $candidate['officer']->id,
                 'assignment_order' => $assignmentOrder,
                 'distance_km' => round($candidate['distance_km'], 2),
-                'assignment_status' => 'pending',
+                'assignment_status' => 'assigned',
                 'assigned_at' => $now,
-                'response_deadline' => $now->copy()->addSeconds(self::RESPONSE_WINDOW_SECONDS),
                 'notes' => json_encode([
                     'dispatch_notification' => [
                         'title' => 'New field report assigned',
@@ -94,54 +87,87 @@ class DispatchService
         return $assignment;
     }
 
-    public function respondToAssignment(
-        CitizenReport $report,
+public function startAssignment(
+        ReportAssignment $assignment,
         User $officer,
-        string $response,
         ?string $notes = null
-    ): array {
-        return DB::transaction(function () use ($report, $officer, $response, $notes) {
+    ): ReportAssignment {
+        $startedAssignment = DB::transaction(function () use ($assignment, $officer, $notes) {
             $assignment = ReportAssignment::query()
-                ->where('citizen_report_id', $report->id)
+                ->whereKey($assignment->id)
                 ->where('officer_id', $officer->id)
-                ->where('assignment_status', 'pending')
-                ->latest('assignment_order')
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $report = CitizenReport::query()->lockForUpdate()->findOrFail($report->id);
-            $now = now();
+            $report = CitizenReport::query()
+                ->whereKey($assignment->citizen_report_id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-            if ($response === 'accept') {
-                $assignment->update([
-                    'assignment_status' => 'accepted',
-                    'responded_at' => $now,
-                    'notes' => $notes,
-                ]);
-
-                $report->update([
-                    'status' => 'in_progress',
-                    'accepted_at' => $now,
-                    'assigned_officer_id' => $officer->id,
-                ]);
-
-                OfficerLiveLocation::query()
-                    ->where('officer_id', $officer->id)
-                    ->update([
-                        'availability_status' => 'busy',
-                        'updated_at' => $now,
-                    ]);
-
-                return [
-                    'assignment' => $assignment->fresh(['citizenReport.reportLocation']),
-                    'next_assignment' => null,
-                ];
+            if ($report->status === 'closed') {
+                return $assignment->load(['citizenReport.reportLocation', 'officer']);
             }
 
+            $now = now();
+
             $assignment->update([
-                'assignment_status' => 'rejected',
+                'responded_at' => $assignment->responded_at ?? $now,
+                'notes' => $notes ?? $assignment->notes,
+            ]);
+
+            $report->update([
+                'status' => 'in_progress',
+                'accepted_at' => $report->accepted_at ?? $now,
+            ]);
+
+            OfficerLiveLocation::query()
+                ->where('officer_id', $officer->id)
+                ->update([
+                    'availability_status' => 'responding',
+                    'updated_at' => $now,
+                    'last_update_time' => $now,
+                ]);
+
+            return $assignment->fresh(['citizenReport.reportLocation', 'officer']);
+        });
+
+        return $startedAssignment;
+    }
+
+    public function completeAssignment(
+        ReportAssignment $assignment,
+        User $officer,
+        ?string $notes = null
+    ): ReportAssignment {
+        $completedAssignment = DB::transaction(function () use ($assignment, $officer, $notes) {
+            $assignment = ReportAssignment::query()
+                ->whereKey($assignment->id)
+                ->where('officer_id', $officer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $report = CitizenReport::query()
+                ->whereKey($assignment->citizen_report_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($assignment->assignment_status === 'completed') {
+                return $assignment->load(['citizenReport.reportLocation', 'officer']);
+            }
+
+            $now = now();
+
+            $assignment->update([
+                'assignment_status' => 'completed',
                 'responded_at' => $now,
                 'notes' => $notes,
+            ]);
+
+            $report->update([
+                'status' => 'closed',
+                'assigned_officer_id' => $officer->id,
+                'accepted_at' => $report->accepted_at ?? $now,
+                'closed_at' => $now,
             ]);
 
             OfficerLiveLocation::query()
@@ -149,74 +175,70 @@ class DispatchService
                 ->update([
                     'availability_status' => 'available',
                     'updated_at' => $now,
+                    'last_update_time' => $now,
                 ]);
 
-            $report->update([
-                'assigned_officer_id' => null,
-                'status' => 'submitted',
-            ]);
-
-            $nextAssignment = $this->dispatchReport($report, [$officer->id]);
-
-            return [
-                'assignment' => $assignment->fresh(['citizenReport.reportLocation']),
-                'next_assignment' => $nextAssignment,
-            ];
+            return $assignment->fresh(['citizenReport.reportLocation', 'officer']);
         });
+
+        $this->dispatchPendingReportsForOfficer($officer->id);
+
+        return $completedAssignment;
     }
 
     public function expireStaleAssignments(): void
     {
-        $expiredAssignments = ReportAssignment::query()
-            ->with('citizenReport')
-            ->where('assignment_status', 'pending')
-            ->whereNotNull('response_deadline')
-            ->where('response_deadline', '<', now())
+        $this->dispatchPendingReports();
+    }
+
+    public function dispatchPendingReports(int $limit = 50): int
+    {
+        $reports = CitizenReport::query()
+            ->with('reportLocation')
+            ->where('status', 'submitted')
+            ->whereNull('assigned_officer_id')
+            ->whereNotNull('report_location_id')
+            ->where(function ($query): void {
+                $query->whereNull('last_dispatch_at')
+                    ->orWhere('last_dispatch_at', '<=', now()->subSeconds(self::PENDING_RETRY_COOLDOWN_SECONDS));
+            })
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low')")
+            ->orderBy('submitted_at')
+            ->limit($limit)
             ->get();
 
-        foreach ($expiredAssignments as $assignment) {
-            DB::transaction(function () use ($assignment) {
-                $lockedAssignment = ReportAssignment::query()
-                    ->lockForUpdate()
-                    ->find($assignment->id);
+        $dispatchedCount = 0;
 
-                if (! $lockedAssignment || $lockedAssignment->assignment_status !== 'pending') {
-                    return;
-                }
-
-                $report = CitizenReport::query()
-                    ->lockForUpdate()
-                    ->find($lockedAssignment->citizen_report_id);
-
-                if (! $report) {
-                    return;
-                }
-
-                $lockedAssignment->update([
-                    'assignment_status' => 'expired',
-                    'responded_at' => now(),
-                    'notes' => 'Assignment expired due to no response.',
-                ]);
-
-                OfficerLiveLocation::query()
-                    ->where('officer_id', $lockedAssignment->officer_id)
-                    ->update([
-                        'availability_status' => 'available',
-                        'updated_at' => now(),
-                    ]);
-
-                if ((int) $report->assigned_officer_id === (int) $lockedAssignment->officer_id) {
-                    $report->update([
-                        'assigned_officer_id' => null,
-                        'status' => 'submitted',
-                    ]);
-                }
-            });
-
-            if ($assignment->citizenReport) {
-                $this->dispatchReport($assignment->citizenReport, [$assignment->officer_id]);
+        foreach ($reports as $report) {
+            if ($this->dispatchReport($report) !== null) {
+                $dispatchedCount++;
             }
         }
+
+        return $dispatchedCount;
+    }
+
+    public function dispatchPendingReportsForOfficer(int $officerId, int $limit = 50): int
+    {
+        $reports = CitizenReport::query()
+            ->with('reportLocation')
+            ->where('status', 'submitted')
+            ->whereNull('assigned_officer_id')
+            ->whereNotNull('report_location_id')
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'medium', 'low')")
+            ->orderBy('submitted_at')
+            ->limit($limit)
+            ->get();
+
+        $dispatchedCount = 0;
+
+        foreach ($reports as $report) {
+            if ($this->dispatchReport($report, $this->allOfficerIdsExcept($officerId)) !== null) {
+                $dispatchedCount++;
+            }
+        }
+
+        return $dispatchedCount;
     }
 
     private function findNearestAvailableOfficer(CitizenReport $report, array $excludedOfficerIds = []): ?array
@@ -300,5 +322,15 @@ class DispatchService
                 'longitude' => $location?->longitude,
             ]
         );
+    }
+
+    private function allOfficerIdsExcept(int $officerId): array
+    {
+        return User::query()
+            ->where('role', RoleUserEnum::Police_officer)
+            ->whereKeyNot($officerId)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
     }
 }

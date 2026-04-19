@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../models/violation.dart';
+import '../../services/violation_pdf_service.dart';
 import '../../utils/data_utils.dart';
-class ViolationDetailsPage extends StatelessWidget {
+import 'violation_pdf_preview_page.dart';
+
+class ViolationDetailsPage extends StatefulWidget {
   final Violation violation;
 
   const ViolationDetailsPage({super.key, required this.violation});
+
+  @override
+  State<ViolationDetailsPage> createState() => _ViolationDetailsPageState();
+}
+
+class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
+  bool _pdfLoading = false;
 
   String _formatDate(String? occurredAt, String? createdAt) {
     final dt = AppDateUtils.violationDate(
@@ -48,11 +59,43 @@ class ViolationDetailsPage extends StatelessWidget {
     );
   }
 
+  Future<void> _openPdf() async {
+    if (_pdfLoading) return;
+
+    setState(() => _pdfLoading = true);
+
+    try {
+      final file = await ViolationPdfService.ensurePdf(
+        widget.violation,
+        force: true,
+      );
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ViolationPdfPreviewPage(
+            filePath: file.path,
+            violationId: widget.violation.id,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to prepare PDF: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _pdfLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final violation = widget.violation;
     final snap = violation.vehicleSnapshot;
-
-    final plate = snap?['plate_number']?.toString() ?? "No Plate";
+    final plate = violation.plateNumber ?? "No Plate";
 
     return Scaffold(
       backgroundColor: const Color(0xFF050814),
@@ -60,6 +103,19 @@ class ViolationDetailsPage extends StatelessWidget {
         title: const Text("Violation Details"),
         backgroundColor: const Color(0xFF050814),
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: _pdfLoading ? null : _openPdf,
+            icon: _pdfLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Open PDF',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(22),
@@ -73,26 +129,34 @@ class ViolationDetailsPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // -------- Title ----------
               Row(
                 children: [
                   const Icon(Icons.local_police, color: Colors.amber, size: 30),
                   const SizedBox(width: 12),
-                  Text(
-                    plate,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  Expanded(
+                    child: Text(
+                      plate,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                  )
+                  ),
                 ],
               ),
-
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _pdfLoading ? null : _openPdf,
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: Text(
+                      _pdfLoading ? 'Preparing PDF...' : 'Open Violation PDF'),
+                ),
+              ),
               const SizedBox(height: 20),
               const Divider(color: Colors.white12),
-
-              // --------- Vehicle Info ----------
               Text(
                 "Vehicle Information",
                 style: TextStyle(
@@ -102,14 +166,10 @@ class ViolationDetailsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-
-              infoRow(Icons.directions_car, "Plate", snap?['plate_number']),
-              infoRow(Icons.person, "Owner", snap?['owner_name']),
-
+              infoRow(Icons.directions_car, "Plate", violation.plateNumber),
+              infoRow(Icons.person, "Owner", violation.ownerName),
               const SizedBox(height: 18),
               const Divider(color: Colors.white12),
-
-              // ---------- Location ----------
               Text(
                 "Location",
                 style: TextStyle(
@@ -119,18 +179,15 @@ class ViolationDetailsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-
               infoRow(Icons.location_city, "City", violation.locationCityName),
               infoRow(Icons.map, "Street", violation.locationStreetName),
               infoRow(Icons.place, "Landmark", violation.locationLandmark),
-              infoRow(Icons.home_outlined, "Address", violation.locationAddress),
+              infoRow(
+                  Icons.home_outlined, "Address", violation.locationAddress),
               infoRow(Icons.pin_drop, "Latitude", violation.locationLatitude),
               infoRow(Icons.pin_drop, "Longitude", violation.locationLongitude),
-
               const SizedBox(height: 18),
               const Divider(color: Colors.white12),
-
-              // ---------- Violation Info ----------
               Text(
                 "Violation Details",
                 style: TextStyle(
@@ -140,13 +197,10 @@ class ViolationDetailsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-
               infoRow(Icons.warning, "Type", violation.violationType?['name']),
-              infoRow(Icons.money, "Fine Amount",
-                  violation.fineAmount?.toString()),
+              infoRow(
+                  Icons.money, "Fine Amount", violation.fineAmount?.toString()),
               infoRow(Icons.description, "Description", violation.description),
-
-              // ✅ FIXED DATE
               infoRow(
                 Icons.calendar_today,
                 "Date",

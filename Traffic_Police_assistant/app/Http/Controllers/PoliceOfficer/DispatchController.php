@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\PoliceOfficer;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\PoliceOfficer\RespondToReportAssignmentRequest;
+use App\Http\Requests\PoliceOfficer\CompleteReportAssignmentRequest;
 use App\Http\Requests\PoliceOfficer\UpdateLiveLocationRequest;
 use App\Http\Resources\PoliceOfficer\DispatchAssignmentResource;
 use App\Http\Services\Dispatch\DispatchService;
-use App\Models\CitizenReport;
 use App\Models\OfficerLiveLocation;
 use App\Models\ReportAssignment;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +24,13 @@ class DispatchController extends Controller
         $user = $request->user();
         $now = now();
         $validated = $request->validated();
+        $hasActiveAssignment = ReportAssignment::query()
+            ->where('officer_id', $user->id)
+            ->where('assignment_status', 'assigned')
+            ->whereHas('citizenReport', function ($query): void {
+                $query->whereIn('status', ['dispatched', 'in_progress']);
+            })
+            ->exists();
 
         $location = OfficerLiveLocation::query()->firstOrNew([
             'officer_id' => $user->id,
@@ -37,13 +43,19 @@ class DispatchController extends Controller
         $location->fill([
             'latitude' => $validated['latitude'],
             'longitude' => $validated['longitude'],
-            'availability_status' => $validated['availability_status'] ?? 'available',
+            'availability_status' => $hasActiveAssignment
+                ? 'responding'
+                : ($validated['availability_status']
+                    ?? ($location->availability_status ?: 'available')),
             'last_update_time' => $now,
-            'device_id' => $validated['device_id'] ?? null,
-            'battery_level' => $validated['battery_level'] ?? null,
             'updated_at' => $now,
         ]);
         $location->save();
+        $user->forceFill(['last_seen_at' => $now])->save();
+
+        if ($location->availability_status === 'available') {
+            $this->dispatchService->dispatchPendingReportsForOfficer($user->id);
+        }
 
         return response()->json([
             'status_code' => 200,
@@ -59,7 +71,7 @@ class DispatchController extends Controller
         $assignments = ReportAssignment::query()
             ->with(['citizenReport.reportLocation'])
             ->where('officer_id', $request->user()->id)
-            ->whereIn('assignment_status', ['pending', 'accepted'])
+            ->where('assignment_status', 'assigned')
             ->orderByDesc('assigned_at')
             ->get();
 
@@ -70,30 +82,38 @@ class DispatchController extends Controller
         ]);
     }
 
-    public function respond(
-        RespondToReportAssignmentRequest $request,
-        CitizenReport $report
+    public function start(
+        CompleteReportAssignmentRequest $request,
+        ReportAssignment $assignment
     ): JsonResponse {
-        $validated = $request->validated();
-
-        $result = $this->dispatchService->respondToAssignment(
-            $report,
+        $startedAssignment = $this->dispatchService->startAssignment(
+            $assignment,
             $request->user(),
-            $validated['response'],
-            $validated['notes'] ?? null
+            $request->validated()['notes'] ?? null
         );
 
         return response()->json([
             'status_code' => 200,
-            'message' => $validated['response'] === 'accept'
-                ? 'Assignment accepted successfully'
-                : 'Assignment rejected and reassigned when possible',
-            'data' => [
-                'current_assignment' => new DispatchAssignmentResource($result['assignment']),
-                'next_assignment' => $result['next_assignment']
-                    ? new DispatchAssignmentResource($result['next_assignment'])
-                    : null,
-            ],
+            'message' => 'Report marked as in progress successfully',
+            'data' => new DispatchAssignmentResource($startedAssignment),
         ]);
     }
+
+    public function complete(
+        CompleteReportAssignmentRequest $request,
+        ReportAssignment $assignment
+    ): JsonResponse {
+        $completedAssignment = $this->dispatchService->completeAssignment(
+            $assignment,
+            $request->user(),
+            $request->validated()['notes'] ?? null
+        );
+
+        return response()->json([
+            'status_code' => 200,
+            'message' => 'Report marked as completed successfully',
+            'data' => new DispatchAssignmentResource($completedAssignment),
+        ]);
+    }
+
 }

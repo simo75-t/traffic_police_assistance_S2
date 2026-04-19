@@ -23,8 +23,8 @@ class PoliceAssistantApp extends StatelessWidget {
       theme: PoliceTheme.theme,
       routes: {
         '/dispatch-assignments': (context) {
-          final reportId = ModalRoute.of(context)?.settings.arguments as int?;
-          return DispatchAssignmentsPage(highlightReportId: reportId);
+          final id = ModalRoute.of(context)?.settings.arguments as int?;
+          return DispatchAssignmentsPage(highlightId: id);
         },
       },
       home: const LoginPage(),

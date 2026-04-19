@@ -23,6 +23,7 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
+  static bool _firebaseAvailable = false;
   static bool _tokenRefreshRegistered = false;
 
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
@@ -35,7 +36,14 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    await Firebase.initializeApp();
+    try {
+      await Firebase.initializeApp();
+      _firebaseAvailable = true;
+    } catch (_) {
+      _initialized = true;
+      return;
+    }
+
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
     const initSettings = InitializationSettings(
@@ -75,6 +83,7 @@ class NotificationService {
 
   static Future<void> syncTokenWithBackend() async {
     await initialize();
+    if (!_firebaseAvailable) return;
 
     final authToken = await SecureStorage.readToken();
     if (authToken == null || authToken.isEmpty) return;
@@ -130,10 +139,13 @@ class NotificationService {
   }
 
   static void _handlePayload(Map<String, dynamic> payload) {
-    final reportId = int.tryParse(payload['report_id']?.toString() ?? '');
+    final highlightId =
+        int.tryParse(payload['assignment_id']?.toString() ?? '') ??
+            int.tryParse(payload['report_id']?.toString() ?? '');
+    if (highlightId == null) return;
     appNavigatorKey.currentState?.pushNamed(
       '/dispatch-assignments',
-      arguments: reportId,
+      arguments: highlightId,
     );
   }
 }

@@ -26,7 +26,7 @@ class ViolationController extends Controller
     public function create(CreateViolationRequest $request){
         $atrr =  $request->validated();
         $violation = $this->violationService->createViolation($atrr);
-        $violation->load(['vehicle', 'violationType', 'violationLocation.city']);
+        $violation->load(['vehicle', 'violationType', 'violationLocation.city', 'violationLocation.area']);
         return $this->success(new ViolationResource($violation)) ;
 
     }

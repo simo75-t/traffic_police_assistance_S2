@@ -37,7 +37,8 @@ class AiConsumeResults extends Command
             try {
                 $data = json_decode($msg->body, true, 512, JSON_THROW_ON_ERROR);
 
-                $job = AiJob::where('job_id', $data['job_id'] ?? null)->first();
+                $jobId = $data['job_id'] ?? $data['request_id'] ?? null;
+                $job = AiJob::where('job_id', $jobId)->first();
 
                 if ($job) {
                     $job->status = ($data['status'] === 'success') ? 'success' : 'failed';

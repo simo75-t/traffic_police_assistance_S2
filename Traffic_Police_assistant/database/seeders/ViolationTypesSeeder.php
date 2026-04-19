@@ -42,10 +42,6 @@ class ViolationTypesSeeder extends Seeder
             ['name' => 'القيادة في مناطق ممنوعة', 'description' => 'دخول أو قيادة المركبة في مناطق محظورة أو غير مصرح بها.', 'fine_amount' => 70, 'severity_weight' => 4, 'is_active' => true],
         ];
 
-        ViolationType::query()
-            ->whereNotIn('name', array_column($violationTypes, 'name'))
-            ->delete();
-
         foreach ($violationTypes as $type) {
             ViolationType::query()->updateOrCreate(
                 ['name' => $type['name']],

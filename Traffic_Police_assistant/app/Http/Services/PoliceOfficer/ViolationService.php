@@ -2,6 +2,7 @@
 
 namespace App\Http\Services\PoliceOfficer;
 
+use App\Models\Area;
 use App\Models\City;
 use App\Models\Vehicle;
 use App\Models\Violation;
@@ -90,7 +91,31 @@ class ViolationService
             $cityName = City::query()->find($cityId)?->name;
         }
 
+        $areaId = $data['area_id'] ?? null;
+        $areaName = $data['area_name'] ?? null;
+
+        if (empty($areaId) && !empty($areaName)) {
+            $normalizedAreaName = $this->normalizeCityName($areaName);
+            $matchedArea = Area::query()
+                ->get()
+                ->first(function (Area $area) use ($normalizedAreaName) {
+                    $normalizedStoredArea = $this->normalizeCityName($area->name);
+                    return $normalizedStoredArea !== null
+                        && $normalizedAreaName !== null
+                        && (
+                            $normalizedStoredArea === $normalizedAreaName ||
+                            str_contains($normalizedStoredArea, $normalizedAreaName) ||
+                            str_contains($normalizedAreaName, $normalizedStoredArea)
+                        );
+                });
+
+            if ($matchedArea) {
+                $areaId = $matchedArea->id;
+            }
+        }
+
         $location = ViolationLocation::create([
+            'area_id'     => $areaId,
             'city_id'     => $cityId,
             'city'        => $cityName,
             'street_name' => $data['street_name'] ?? null,

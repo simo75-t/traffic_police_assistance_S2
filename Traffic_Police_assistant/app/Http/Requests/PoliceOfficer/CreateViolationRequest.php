@@ -33,6 +33,8 @@ class CreateViolationRequest extends FormRequest
             'street_name'   => ['nullable', 'string', 'max:255'],
             'city_id' => ['nullable', 'exists:cities,id'],
             'city_name' => ['nullable', 'string', 'max:255'],
+            'area_id' => ['nullable', 'exists:areas,id'],
+            'area_name' => ['nullable', 'string', 'max:255'],
             'landmark'     => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],

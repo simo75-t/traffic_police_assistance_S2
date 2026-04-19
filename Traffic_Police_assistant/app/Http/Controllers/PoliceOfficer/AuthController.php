@@ -4,6 +4,7 @@
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\PoliceOfficer\UpdateProfileRequest;
 use App\Http\Requests\PoliceOfficer\UpdateFcmTokenRequest;
 use App\Http\Services\AuthService;
 use App\Http\Resources\ProfileResource;
@@ -44,6 +45,20 @@ class AuthController extends Controller
         $profile = $this->authService->profile();
 
         return $this->success(new ProfileResource($profile));
+    }
+
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse
+    {
+        $user = $this->authService->updateProfile(
+            $request->user(),
+            $request->validated()
+        );
+
+        return response()->json([
+            'status_code' => 200,
+            'message' => 'Profile updated successfully',
+            'data' => new ProfileResource($user),
+        ]);
     }
     
     public function logout(Request $request): JsonResponse

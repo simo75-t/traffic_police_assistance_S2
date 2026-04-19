@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/officer_presence_service.dart';
 import '../../services/secure_storage.dart';
 import '../home/home_page.dart';
 
@@ -51,7 +52,17 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       await SecureStorage.saveAuthSession(token: token, tokenType: tokenType);
-      await NotificationService.syncTokenWithBackend();
+      try {
+        await NotificationService.syncTokenWithBackend();
+      } catch (e) {
+        debugPrint('FCM sync skipped after login: $e');
+      }
+
+      try {
+        await OfficerPresenceService.start();
+      } catch (e) {
+        debugPrint('Presence sync skipped after login: $e');
+      }
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -120,7 +131,6 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                   const SizedBox(height: 32),
-
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -148,9 +158,11 @@ class _LoginPageState extends State<LoginPage> {
                               prefixIcon: Icon(Icons.badge),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) return 'Enter your email';
+                              if (value == null || value.isEmpty)
+                                return 'Enter your email';
                               final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                              if (!emailReg.hasMatch(value)) return 'Enter a valid email';
+                              if (!emailReg.hasMatch(value))
+                                return 'Enter a valid email';
                               return null;
                             },
                           ),
@@ -163,8 +175,10 @@ class _LoginPageState extends State<LoginPage> {
                               prefixIcon: Icon(Icons.lock_outline),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) return 'Enter your password';
-                              if (value.length < 8) return 'Password must be at least 8 characters';
+                              if (value == null || value.isEmpty)
+                                return 'Enter your password';
+                              if (value.length < 8)
+                                return 'Password must be at least 8 characters';
                               return null;
                             },
                           ),

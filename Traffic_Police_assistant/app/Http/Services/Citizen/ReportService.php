@@ -3,9 +3,11 @@
 namespace App\Http\Services\Citizen;
 
 use App\Http\Services\Dispatch\DispatchService;
+use App\Models\Area;
 use App\Models\CitizenReport;
 use App\Models\ReportLocation;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ReportService
@@ -18,11 +20,17 @@ class ReportService
     public function createReport(array $data): CitizenReport
     {
         $report = DB::transaction(function () use ($data) {
+            $resolvedArea = $this->resolveAreaFromCoordinates(
+                (float) $data['latitude'],
+                (float) $data['longitude']
+            );
+
             $location = ReportLocation::query()->create([
+                'area_id' => $resolvedArea?->id,
                 'address' => $data['address'] ?? null,
                 'street_name' => $data['street_name'] ?? null,
                 'landmark' => $data['landmark'] ?? null,
-                'city' => $data['city'] ?? null,
+                'city' => $data['city'] ?? $resolvedArea?->city,
                 'latitude' => $data['latitude'],
                 'longitude' => $data['longitude'],
                 'created_at' => now(),
@@ -35,9 +43,8 @@ class ReportService
             return CitizenReport::query()->create([
                 'reporter_name' => $data['reporter_name'],
                 'reporter_phone' => $data['reporter_phone'] ?? null,
-                'reporter_email' => $data['reporter_email'] ?? null,
                 'report_location_id' => $location->id,
-                'title' => $data['title'],
+                'title' => $data['title'], 
                 'description' => $data['description'],
                 'image_path' => $imagePath,
                 'status' => 'submitted',
@@ -52,10 +59,59 @@ class ReportService
         $this->dispatchService->dispatchReport($report->load('reportLocation'));
 
         return $report->fresh([
-            'reportLocation',
+            'reportLocation.area',
             'assignedOfficer',
-            'assignments',
+            'assignments.officer',
         ]);
+    }
+
+    private function resolveAreaFromCoordinates(float $latitude, float $longitude): ?Area
+    {
+        /** @var Collection<int, Area> $areas */
+        $areas = Area::query()
+            ->whereNotNull('center_lat')
+            ->whereNotNull('center_lng')
+            ->get();
+
+        if ($areas->isEmpty()) {
+            return null;
+        }
+
+        $closest = $areas
+            ->map(function (Area $area) use ($latitude, $longitude): array {
+                return [
+                    'area' => $area,
+                    'distance_km' => $this->haversineDistanceKm(
+                        $latitude,
+                        $longitude,
+                        (float) $area->center_lat,
+                        (float) $area->center_lng
+                    ),
+                ];
+            })
+            ->sortBy('distance_km')
+            ->first();
+
+        if (! $closest || $closest['distance_km'] > 100) {
+            return null;
+        }
+
+        return $closest['area'];
+    }
+
+    private function haversineDistanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+
+        $a = sin($dLat / 2) * sin($dLat / 2)
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($dLng / 2) * sin($dLng / 2);
+
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 
     private function storeReportImage(UploadedFile $file): string

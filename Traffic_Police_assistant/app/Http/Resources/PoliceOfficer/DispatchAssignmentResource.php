@@ -17,11 +17,8 @@ class DispatchAssignmentResource extends JsonResource
         return [
             'assignment_id' => $this->id,
             'assignment_order' => $this->assignment_order,
-            'assignment_status' => $this->assignment_status,
             'distance_km' => $this->distance_km,
             'assigned_at' => $this->assigned_at,
-            'responded_at' => $this->responded_at,
-            'response_deadline' => $this->response_deadline,
             'notes' => $this->notes,
             'report' => $report ? [
                 'id' => $report->id,

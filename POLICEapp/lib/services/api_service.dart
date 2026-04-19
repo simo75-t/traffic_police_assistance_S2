@@ -15,7 +15,8 @@ class ApiService {
   static const Duration _defaultTimeout = Duration(seconds: 20);
   static const int _maxAttempts = 3;
 
-  static Future<Map<String, dynamic>> login(String email, String password) async {
+  static Future<Map<String, dynamic>> login(
+      String email, String password) async {
     final res = await _sendJson(
       method: 'POST',
       path: '/login',
@@ -59,12 +60,36 @@ class ApiService {
 
     return Profile.fromJson({
       'id': profileData['id'] ?? 0,
-      'name': profileData['name'] ?? 'N/A',
-      'email': profileData['email'] ?? 'N/A',
-      'role': profileData['role'] ?? 'Unknown',
-      'isActive': profileData['is_active'] ?? false,
+      'name': profileData['name'] ?? '',
+      'email': profileData['email'] ?? '',
+      'phone': profileData['phone'],
+      'role': profileData['role'] ?? '',
+      'is_active': profileData['is_active'] ?? false,
       'profile_image': profileData['profile_image'],
+      'last_seen_at': profileData['last_seen_at'],
     });
+  }
+
+  static Future<Profile> updateProfile(
+    String token, {
+    required String name,
+    required String email,
+    String? phone,
+  }) async {
+    final res = await _sendJson(
+      method: 'POST',
+      path: '/profile/update',
+      token: token,
+      body: {
+        'name': name.trim(),
+        'email': email.trim(),
+        'phone': phone == null || phone.trim().isEmpty ? null : phone.trim(),
+      },
+    );
+
+    final body = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
+    final profileData = _asMap(_extractData(body)) ?? const <String, dynamic>{};
+    return Profile.fromJson(profileData);
   }
 
   static Future<List<Violation>> getViolations(String token) async {
@@ -128,7 +153,27 @@ class ApiService {
     );
   }
 
-  static Future<List<DispatchAssignment>> getDispatchAssignments(String token) async {
+  static Future<http.Response> updateOfficerLiveLocation(
+    String token, {
+    required double latitude,
+    required double longitude,
+    String? availabilityStatus,
+  }) async {
+    return await _sendJson(
+      method: 'POST',
+      path: '/officers/live-location',
+      token: token,
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+        if (availabilityStatus != null && availabilityStatus.isNotEmpty)
+          'availability_status': availabilityStatus,
+      },
+    );
+  }
+
+  static Future<List<DispatchAssignment>> getDispatchAssignments(
+      String token) async {
     final res = await _sendJson(
       method: 'GET',
       path: '/officers/assignments',
@@ -145,18 +190,33 @@ class ApiService {
         .toList();
   }
 
-  static Future<void> respondToReportAssignment(
+  /// Mark an assignment/report as processed/completed by the assigned officer.
+  /// This replaces the accept/reject flow for nearest-officer assignments.
+  static Future<void> startReportProcessing(
     String token, {
-    required int reportId,
-    required String response,
+    required int assignmentId,
     String? notes,
   }) async {
     await _sendJson(
       method: 'POST',
-      path: '/officers/reports/$reportId/respond',
+      path: '/officers/assignments/$assignmentId/start',
       token: token,
       body: {
-        'response': response,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+  }
+
+  static Future<void> completeReport(
+    String token, {
+    required int assignmentId,
+    String? notes,
+  }) async {
+    await _sendJson(
+      method: 'POST',
+      path: '/officers/assignments/$assignmentId/complete',
+      token: token,
+      body: {
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       },
     );
@@ -175,7 +235,8 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getAiCities(String token) async {
-    return _getLookupList(token: token, path: '/ai_cities', entity: 'AI cities');
+    return _getLookupList(
+        token: token, path: '/ai_cities', entity: 'AI cities');
   }
 
   static Future<List<dynamic>> getAiViolationTypes(String token) async {
@@ -224,7 +285,8 @@ class ApiService {
     return jobId;
   }
 
-  static Future<Map<String, dynamic>> getOcrResult(String token, String jobId) async {
+  static Future<Map<String, dynamic>> getOcrResult(
+      String token, String jobId) async {
     final res = await _sendJson(
       method: 'GET',
       path: '/ocr/result/$jobId',
@@ -344,7 +406,8 @@ class ApiService {
     return jobId;
   }
 
-  static Future<Map<String, dynamic>> getSttResult(String token, String jobId) async {
+  static Future<Map<String, dynamic>> getSttResult(
+      String token, String jobId) async {
     final res = await _sendJson(
       method: 'GET',
       path: '/stt/result/$jobId',
@@ -535,15 +598,46 @@ class ApiService {
   }
 
   static dynamic _decodeJsonSafe(String body) {
-    if (body.trim().isEmpty) {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) {
       return null;
     }
 
     try {
-      return jsonDecode(body);
+      return jsonDecode(trimmed);
     } catch (_) {
+      final cleaned = trimmed.replaceFirst('\uFEFF', '');
+      if (cleaned != trimmed) {
+        try {
+          return jsonDecode(cleaned);
+        } catch (_) {}
+      }
+
+      final extracted = _extractJsonEnvelope(cleaned);
+      if (extracted != null) {
+        try {
+          return jsonDecode(extracted);
+        } catch (_) {}
+      }
+
       return null;
     }
+  }
+
+  static String? _extractJsonEnvelope(String body) {
+    final objectStart = body.indexOf('{');
+    final objectEnd = body.lastIndexOf('}');
+    if (objectStart != -1 && objectEnd > objectStart) {
+      return body.substring(objectStart, objectEnd + 1);
+    }
+
+    final listStart = body.indexOf('[');
+    final listEnd = body.lastIndexOf(']');
+    if (listStart != -1 && listEnd > listStart) {
+      return body.substring(listStart, listEnd + 1);
+    }
+
+    return null;
   }
 
   static AppApiException _buildApiException(int statusCode, String body) {
@@ -573,10 +667,10 @@ class ApiService {
   }
 
   static String _defaultMessageFor(int statusCode) {
-    if (statusCode == 401) return 'Unauthenticated.';
-    if (statusCode == 422) return 'Validation failed';
-    if (statusCode >= 500) return 'Server error';
-    return 'Request failed ($statusCode)';
+    if (statusCode == 401) return 'انتهت الجلسة أو لم يتم تسجيل الدخول.';
+    if (statusCode == 422) return 'البيانات المدخلة غير صالحة.';
+    if (statusCode >= 500) return 'حدث خطأ في الخادم.';
+    return 'فشل تنفيذ الطلب ($statusCode).';
   }
 
   static Map<String, dynamic> _normalizeMessage(Map<String, dynamic> map) {
@@ -619,7 +713,8 @@ class ApiService {
     required String entity,
   }) async {
     final res = await _sendJson(method: 'GET', path: path, token: token);
-    final decoded = _decodeMapOrListOrThrow(res.body, statusCode: res.statusCode);
+    final decoded =
+        _decodeMapOrListOrThrow(res.body, statusCode: res.statusCode);
 
     if (decoded is List<dynamic>) {
       return decoded;

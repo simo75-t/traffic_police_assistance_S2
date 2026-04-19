@@ -3,11 +3,10 @@ class DispatchAssignment {
   final int reportId;
   final String title;
   final String description;
-  final String status;
+  final String reportStatus;
   final String priority;
   final double? distanceKm;
   final String? assignedAt;
-  final String? responseDeadline;
   final String? imageUrl;
   final String? reporterName;
   final String? reporterPhone;
@@ -23,11 +22,10 @@ class DispatchAssignment {
     required this.reportId,
     required this.title,
     required this.description,
-    required this.status,
+    required this.reportStatus,
     required this.priority,
     this.distanceKm,
     this.assignedAt,
-    this.responseDeadline,
     this.imageUrl,
     this.reporterName,
     this.reporterPhone,
@@ -40,20 +38,22 @@ class DispatchAssignment {
   });
 
   factory DispatchAssignment.fromJson(Map<String, dynamic> json) {
-    final report = (json['report'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final location = (report['location'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final reporter = (report['reporter'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final report =
+        (json['report'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final location =
+        (report['location'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final reporter =
+        (report['reporter'] as Map?)?.cast<String, dynamic>() ?? const {};
 
     return DispatchAssignment(
       assignmentId: _toInt(json['assignment_id']),
       reportId: _toInt(report['id']),
       title: (report['title'] ?? '').toString(),
       description: (report['description'] ?? '').toString(),
-      status: (report['status'] ?? json['assignment_status'] ?? '').toString(),
+      reportStatus: (report['status'] ?? '').toString(),
       priority: (report['priority'] ?? '').toString(),
       distanceKm: _toDouble(json['distance_km']),
       assignedAt: json['assigned_at']?.toString(),
-      responseDeadline: json['response_deadline']?.toString(),
       imageUrl: report['image_url']?.toString(),
       reporterName: reporter['name']?.toString(),
       reporterPhone: reporter['phone']?.toString(),

@@ -179,22 +179,28 @@ class HeatmapOrchestrator:
 
         rows = []
         for cell, intensity in zip(grid_cells, intensities):
-            rows.append(
-                {
-                    "cell_id": cell["cell_id"],
-                    "lat": round(cell["center_lat"], 6),
-                    "lng": round(cell["center_lng"], 6),
-                    "intensity": round(float(intensity), 6),
-                }
-            )
+            row = {
+                "cell_id": cell["cell_id"],
+                "lat": round(cell["center_lat"], 6),
+                "lng": round(cell["center_lng"], 6),
+                "intensity": round(float(intensity), 6),
+            }
+            representative = self._representative_point_for_cell(cell=cell, points=points)
+            if representative is not None:
+                row["lat"] = round(float(representative["latitude"]), 6)
+                row["lng"] = round(float(representative["longitude"]), 6)
+                row["area_label"] = str(representative.get("location_label") or "").strip()
+                row["location_label"] = row["area_label"]
+            rows.append(row)
+
         visible_rows = self._compact_heatmap_points(rows=rows, total_points=len(points))
         for row in visible_rows:
-            row["area_label"] = self._nearest_location_label_for_coords(
-                lat=float(row["lat"]),
-                lng=float(row["lng"]),
-                points=points,
-                fallback_label=city,
-            )
+            if not row.get("area_label"):
+                row["area_label"] = self._nearest_location_label_for_coords(
+                    lat=float(row["lat"]),
+                    lng=float(row["lng"]),
+                    points=points,
+                )
         return visible_rows
 
     def _compact_heatmap_points(self, rows: list[dict], total_points: int) -> list[dict]:
@@ -214,7 +220,41 @@ class HeatmapOrchestrator:
         dynamic_limit = min(max_return_points, max(settings.HEATMAP_TOP_N * 3, total_points * 2))
         return filtered_rows[:dynamic_limit]
 
-    def _nearest_location_label_for_coords(self, lat: float, lng: float, points: list[dict], fallback_label: str = "") -> str:
+    def _representative_point_for_cell(self, cell: dict, points: list[dict]) -> dict | None:
+        valid_candidates = []
+        for point in points:
+            try:
+                lat = float(point["latitude"])
+                lng = float(point["longitude"])
+            except (TypeError, ValueError, KeyError):
+                continue
+
+            if not (cell["min_lat"] <= lat <= cell["max_lat"] and cell["min_lng"] <= lng <= cell["max_lng"]):
+                continue
+
+            valid_candidates.append((point, lat, lng))
+
+        if not valid_candidates:
+            return None
+
+        center_lat = (cell["min_lat"] + cell["max_lat"]) / 2
+        center_lng = (cell["min_lng"] + cell["max_lng"]) / 2
+
+        def score(candidate):
+            point, lat, lng = candidate
+            label = str(point.get("location_label") or "").strip()
+            severity = float(point.get("severity_weight") or 1.0)
+            distance = (lat - center_lat) ** 2 + (lng - center_lng) ** 2
+            return (
+                1 if label else 0,
+                severity,
+                -distance,
+            )
+
+        best = max(valid_candidates, key=score)
+        return best[0]
+
+    def _nearest_location_label_for_coords(self, lat: float, lng: float, points: list[dict]) -> str:
         nearest_real = None
         nearest_real_distance = None
         nearest_demo = None
@@ -240,9 +280,9 @@ class HeatmapOrchestrator:
 
         if nearest_real:
             return nearest_real
-        if fallback_label:
-            return str(fallback_label).strip()
-        return nearest_demo or ""
+        if nearest_demo:
+            return nearest_demo
+        return ""
 
     def _build_previous_heatmap(self, parsed: HeatmapPayload) -> list[dict]:
         previous_from, previous_to = shift_period(parsed.date_from, parsed.date_to, parsed.comparison_mode)

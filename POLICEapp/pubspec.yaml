@@ -28,6 +28,8 @@ dependencies:
   path: ^1.9.0
   geolocator: ^13.0.2
   geocoding: ^3.0.0
+  pdf: ^3.11.1
+  printing: ^5.13.4
 
 dependency_overrides:
   record_linux: ^1.2.1
@@ -40,3 +42,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/fonts/arial.ttf
+    - assets/fonts/arialbd.ttf

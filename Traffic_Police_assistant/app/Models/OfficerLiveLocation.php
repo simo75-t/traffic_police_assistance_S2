@@ -17,8 +17,6 @@ class OfficerLiveLocation extends Model
         'longitude',
         'availability_status',
         'last_update_time',
-        'device_id',
-        'battery_level',
         'created_at',
         'updated_at',
     ];

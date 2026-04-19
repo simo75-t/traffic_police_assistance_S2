@@ -43,8 +43,9 @@ class Violation {
         _asMap(json['location']) ?? _asMap(json['violation_location']);
     final rawViolationType =
         _asMap(json['violation_type']) ?? _asMap(json['violationType']);
-    final rawVehicleSnapshot =
-        _normalizeSnapshot(json['vehicle_snapshot']) ??
+    final rawOwnerSnapshot =
+        _normalizeSnapshot(json['owner_snapshot']) ?? _snapshotFromOwner(rawVehicle);
+    final rawVehicleSnapshot = _normalizeSnapshot(json['vehicle_snapshot']) ??
         _snapshotFromVehicle(rawVehicle);
 
     return Violation(
@@ -54,7 +55,7 @@ class Violation {
       violationType: rawViolationType,
       vehicleSnapshot: rawVehicleSnapshot,
       plateSnapshot: _normalizeSnapshot(json['plate_snapshot']),
-      ownerSnapshot: _normalizeSnapshot(json['owner_snapshot']),
+      ownerSnapshot: rawOwnerSnapshot,
       description: json['description']?.toString(),
       occurredAt: json['occurred_at']?.toString() ?? '',
       createdAt: json['created_at']?.toString(),
@@ -86,10 +87,63 @@ class Violation {
   String? get locationAddress => location?['address']?.toString();
   double? get locationLatitude => _asDouble(location?['latitude']);
   double? get locationLongitude => _asDouble(location?['longitude']);
+  String? get ownerName {
+    final nestedOwner = _asMap(vehicle?['owner']);
+    return _firstNonEmpty([
+      ownerSnapshot?['owner_name']?.toString(),
+      ownerSnapshot?['name']?.toString(),
+      ownerSnapshot?['full_name']?.toString(),
+      ownerSnapshot?['owner']?.toString(),
+      vehicleSnapshot?['owner_name']?.toString(),
+      vehicleSnapshot?['name']?.toString(),
+      vehicle?['owner_name']?.toString(),
+      vehicle?['owner']?.toString(),
+      nestedOwner?['name']?.toString(),
+      nestedOwner?['full_name']?.toString(),
+      nestedOwner?['owner_name']?.toString(),
+    ]);
+  }
+
+  String? get plateNumber {
+    return _firstNonEmpty([
+      plateSnapshot?['plate_number']?.toString(),
+      vehicleSnapshot?['plate_number']?.toString(),
+      vehicle?['plate_number']?.toString(),
+    ]);
+  }
+
+  String? get vehicleModelName {
+    return _firstNonEmpty([
+      vehicleSnapshot?['model']?.toString(),
+      vehicle?['model']?.toString(),
+      vehicle?['vehicle_model']?.toString(),
+    ]);
+  }
+
+  String? get vehicleColorName {
+    return _firstNonEmpty([
+      vehicleSnapshot?['color']?.toString(),
+      vehicle?['color']?.toString(),
+      vehicle?['vehicle_color']?.toString(),
+    ]);
+  }
 
   static Map<String, dynamic>? _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is String) {
+      final text = value.trim();
+      if (text.isEmpty) return null;
+      if (text.startsWith('{') || text.startsWith('[')) {
+        try {
+          final decoded = jsonDecode(text);
+          if (decoded is Map<String, dynamic>) return decoded;
+          if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        } catch (_) {
+          return null;
+        }
+      }
+    }
     return null;
   }
 
@@ -117,7 +171,8 @@ class Violation {
     return null;
   }
 
-  static Map<String, dynamic>? _snapshotFromVehicle(Map<String, dynamic>? vehicle) {
+  static Map<String, dynamic>? _snapshotFromVehicle(
+      Map<String, dynamic>? vehicle) {
     if (vehicle == null) return null;
 
     final plate = vehicle['plate_number']?.toString().trim();
@@ -132,6 +187,22 @@ class Violation {
     }
 
     return snapshot.isEmpty ? null : snapshot;
+  }
+
+  static Map<String, dynamic>? _snapshotFromOwner(Map<String, dynamic>? vehicle) {
+    if (vehicle == null) return null;
+
+    final nestedOwner = _asMap(vehicle['owner']);
+    final ownerName = _firstNonEmpty([
+      vehicle['owner_name']?.toString(),
+      vehicle['owner'] is String ? vehicle['owner']?.toString() : null,
+      nestedOwner?['name']?.toString(),
+      nestedOwner?['full_name']?.toString(),
+      nestedOwner?['owner_name']?.toString(),
+    ]);
+
+    if (ownerName == null || ownerName.isEmpty) return null;
+    return {'owner_name': ownerName};
   }
 
   static int? _asInt(dynamic value) {

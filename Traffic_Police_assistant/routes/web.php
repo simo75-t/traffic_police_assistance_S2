@@ -86,6 +86,7 @@ Route::prefix('policemanager')->name('policemanager.')->group(function () {
         Route::get('/', [PoliceManagerDashboardController::class, 'index'])->name('home');
         Route::get('/violations', [ViolationControllerPolice::class, 'index'])->name('violations.index');
         Route::get('/violations/heatmap', [ViolationControllerPolice::class, 'heatmap'])->name('violations.heatmap');
+        Route::get('/violations/map', [ViolationControllerPolice::class, 'map'])->name('violations.map');
         Route::post('/heatmap/generate', [PoliceManagerHeatmapController::class, 'generate'])->name('heatmap.generate');
         Route::get('/heatmap/result/{job_id}', [PoliceManagerHeatmapController::class, 'result'])->name('heatmap.result');
 

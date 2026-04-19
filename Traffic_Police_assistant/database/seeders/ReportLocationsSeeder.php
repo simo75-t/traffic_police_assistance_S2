@@ -13,7 +13,7 @@ class ReportLocationsSeeder extends Seeder
     public function run(): void
     {
         foreach (TrafficSeedData::reportLocations() as $index => $location) {
-            $area = Area::query()->where('name', $location['area_name'])->firstOrFail();
+            $area = Area::query()->where('name', $this->resolveAreaName($location['area_name']))->firstOrFail();
 
             ReportLocation::query()->updateOrCreate(
                 ['street_name' => $location['street_name'], 'landmark' => $location['landmark']],
@@ -31,7 +31,7 @@ class ReportLocationsSeeder extends Seeder
         }
 
         foreach (TrafficSeedData::violationLocations() as $location) {
-            $area = Area::query()->where('name', $location['area_name'])->firstOrFail();
+            $area = Area::query()->where('name', $this->resolveAreaName($location['area_name']))->firstOrFail();
 
             ViolationLocation::query()->updateOrCreate(
                 ['street_name' => $location['street_name'], 'landmark' => $location['landmark']],
@@ -46,5 +46,10 @@ class ReportLocationsSeeder extends Seeder
                 ]
             );
         }
+    }
+
+    private function resolveAreaName(string $name): string
+    {
+        return $name;
     }
 }
