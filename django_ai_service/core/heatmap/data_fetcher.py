@@ -108,14 +108,13 @@ class ViolationDataFetcher:
 
     def _build_location_label(self, location: Any, city_name: Any) -> str:
         if not isinstance(location, dict):
-            return str(city_name or "").strip()
+            return ""
 
         parts = [
             location.get("area_name"),
             location.get("street_name"),
             location.get("landmark"),
             location.get("address"),
-            city_name,
         ]
         labels: list[str] = []
         for part in parts:

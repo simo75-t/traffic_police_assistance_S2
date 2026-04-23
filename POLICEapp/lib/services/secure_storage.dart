@@ -4,6 +4,7 @@ class SecureStorage {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static const String _tokenKey = 'auth_token';
   static const String _tokenTypeKey = 'auth_token_type';
+  static const String _fcmTokenKey = 'fcm_token';
 
   static Future<void> saveToken(String token) async {
     await _storage.write(key: _tokenKey, value: token);
@@ -47,4 +48,15 @@ class SecureStorage {
     await _storage.delete(key: _tokenTypeKey);
   }
 
+  static Future<void> saveFcmToken(String token) async {
+    await _storage.write(key: _fcmTokenKey, value: token);
+  }
+
+  static Future<String?> readFcmToken() async {
+    return _storage.read(key: _fcmTokenKey);
+  }
+
+  static Future<void> deleteFcmToken() async {
+    await _storage.delete(key: _fcmTokenKey);
+  }
 }

@@ -1,12 +1,13 @@
 """OCR service layer.
 
 This file contains the business logic for one OCR job.
+The returned payload is sent back to Laravel, where AiJob remains the single
+runtime source of truth for job results.
 """
 
 import time
 from typing import Any, Dict
 
-from core.ocr.config import results_col
 from core.ocr.image_utils import encode_jpeg_b64, read_image_bgr, resolve_image_path
 from core.ocr.vision import call_ollama_vision_json, normalize_out
 
@@ -28,7 +29,7 @@ def ocr_vehicle(image_path: str) -> Dict[str, str]:
 
 
 def handle_job(msg: Dict[str, Any]) -> Dict[str, Any]:
-    """Process one OCR payload and persist the result in MongoDB."""
+    """Process one OCR payload and return the normalized OCR result."""
     job_id = msg["job_id"]
     payload = msg.get("payload") or {}
     image_path = resolve_image_path(
@@ -44,7 +45,6 @@ def handle_job(msg: Dict[str, Any]) -> Dict[str, Any]:
         "image_path": image_path,
         "created_at": time.time(),
     }
-    inserted = results_col.insert_one(doc)
     return {
         "job_id": job_id,
         "plate_number": doc["plate_number"],
@@ -52,5 +52,4 @@ def handle_job(msg: Dict[str, Any]) -> Dict[str, Any]:
         "color": doc["color"],
         "image_path": doc["image_path"],
         "created_at": doc["created_at"],
-        "mongo_id": str(inserted.inserted_id),
     }

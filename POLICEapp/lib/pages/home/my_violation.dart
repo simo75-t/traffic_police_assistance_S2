@@ -5,6 +5,7 @@ import '../../models/violation.dart';
 import 'violation_details_page.dart';
 import '../../widgets/violation_card.dart';
 import '../../utils/data_utils.dart';
+
 class MyViolationsPage extends StatefulWidget {
   const MyViolationsPage({super.key});
 

@@ -9,8 +9,10 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../models/violation.dart';
 import '../../services/api_service.dart';
 import '../../services/secure_storage.dart';
+import '../../services/violation_pdf_service.dart';
 
 class AddViolationPage extends StatefulWidget {
   const AddViolationPage({super.key});
@@ -176,7 +178,8 @@ class _AddViolationPageState extends State<AddViolationPage> {
     return int.tryParse(value.trim());
   }
 
-  String? _lookupNameById(List<Map<String, dynamic>> items, String? selectedId) {
+  String? _lookupNameById(
+      List<Map<String, dynamic>> items, String? selectedId) {
     if (selectedId == null || selectedId.isEmpty) return null;
 
     for (final item in items) {
@@ -263,7 +266,9 @@ class _AddViolationPageState extends State<AddViolationPage> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       if (!_isLikelyInSyria(position.latitude, position.longitude)) {
@@ -289,16 +294,19 @@ class _AddViolationPageState extends State<AddViolationPage> {
       final detectedLandmark = [
         place?.subLocality,
         place?.name,
-      ].whereType<String>().map((e) => e.trim()).where((e) => e.isNotEmpty).join(', ');
+      ]
+          .whereType<String>()
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .join(', ');
 
       final matchedCityId = _matchCityIdFromName(detectedCity);
 
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
-        _detectedCityName = detectedCity?.trim().isEmpty ?? true
-            ? null
-            : detectedCity?.trim();
+        _detectedCityName =
+            detectedCity?.trim().isEmpty ?? true ? null : detectedCity?.trim();
         _locationLoading = false;
         _locationError = null;
 
@@ -395,7 +403,8 @@ class _AddViolationPageState extends State<AddViolationPage> {
                           style: const TextStyle(color: Colors.white),
                         ),
                         trailing: isSelected
-                            ? const Icon(Icons.check, color: Colors.lightBlueAccent)
+                            ? const Icon(Icons.check,
+                                color: Colors.lightBlueAccent)
                             : null,
                         onTap: () => Navigator.pop(context, id),
                       );
@@ -729,6 +738,93 @@ class _AddViolationPageState extends State<AddViolationPage> {
     if (mounted) setState(() {});
   }
 
+  Map<String, dynamic>? _extractMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
+  Map<String, dynamic>? _extractCreatedViolationPayload(
+    Map<String, dynamic> response,
+    Map<String, dynamic> requestBody,
+  ) {
+    dynamic current = response;
+
+    while (true) {
+      final map = _extractMap(current);
+      if (map == null) break;
+
+      final idValue = map['id'];
+      if (idValue != null) {
+        final payload = Map<String, dynamic>.from(map);
+        final nestedLocation = _extractMap(payload['location']);
+        final nestedVehicle = _extractMap(payload['vehicle']);
+        final nestedViolationType = _extractMap(payload['violation_type']);
+
+        payload['location'] = nestedLocation ??
+            {
+              'city_id': requestBody['city_id'],
+              'city_name': requestBody['city_name'],
+              'street_name': requestBody['street_name'],
+              'landmark': requestBody['landmark'],
+              'latitude': requestBody['latitude'],
+              'longitude': requestBody['longitude'],
+            };
+
+        payload['vehicle'] = nestedVehicle ??
+            {
+              'plate_number': requestBody['vehicle_plate'],
+              'owner_name': requestBody['vehicle_owner'],
+              'model': requestBody['vehicle_model'],
+              'color': requestBody['vehicle_color'],
+            };
+
+        payload['violation_type'] = nestedViolationType ??
+            {
+              'id': requestBody['violation_type_id'],
+              'name': _lookupNameById(
+                violationTypes,
+                requestBody['violation_type_id']?.toString(),
+              ),
+              'fine_amount': violationTypes
+                  .where(
+                    (item) =>
+                        item['id']?.toString() ==
+                        requestBody['violation_type_id']?.toString(),
+                  )
+                  .map((item) => item['fine_amount'])
+                  .firstWhere((_) => true, orElse: () => null),
+            };
+
+        payload['vehicle_snapshot'] = payload['vehicle_snapshot'] ??
+            {
+              'plate_number': requestBody['vehicle_plate'],
+              'owner_name': requestBody['vehicle_owner'],
+              'model': requestBody['vehicle_model'],
+              'color': requestBody['vehicle_color'],
+            };
+
+        payload['description'] ??= requestBody['description'];
+        payload['occurred_at'] ??= requestBody['occurred_at'];
+        payload['fine_amount'] ??= payload['violation_type']?['fine_amount'];
+        return payload;
+      }
+
+      dynamic next;
+      for (final key in const ['data', 'result', 'item', 'violation']) {
+        if (map[key] != null) {
+          next = map[key];
+          break;
+        }
+      }
+
+      if (next == null || identical(next, current)) break;
+      current = next;
+    }
+
+    return null;
+  }
+
   // ================= Submit =================
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -774,7 +870,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
     };
 
 // ===== DEBUG BEFORE SUBMIT =====
-  
+
     try {
       final res = await ApiService.createViolation(token, body);
       final ok = (res['status_code'] == 200) ||
@@ -782,9 +878,17 @@ class _AddViolationPageState extends State<AddViolationPage> {
               res['status'].toString().toLowerCase() == 'success');
 
       if (ok) {
+        final payload = _extractCreatedViolationPayload(res, body);
+        if (payload != null) {
+          final violation = Violation.fromJson(payload);
+          if (violation.id > 0) {
+            await ViolationPdfService.ensurePdf(violation);
+          }
+        }
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Violation created successfully')),
+          const SnackBar(content: Text('Violation created and PDF saved')),
         );
         Navigator.of(context).pop(true);
       } else {
@@ -833,7 +937,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white12),
                 ),
@@ -967,7 +1071,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white12),
                 ),
@@ -991,7 +1095,8 @@ class _AddViolationPageState extends State<AddViolationPage> {
                           ),
                         ),
                         TextButton(
-                          onPressed: _locationLoading ? null : _detectCurrentLocation,
+                          onPressed:
+                              _locationLoading ? null : _detectCurrentLocation,
                           child: Text(_latitude != null ? 'Refresh' : 'Detect'),
                         ),
                       ],
@@ -1001,15 +1106,19 @@ class _AddViolationPageState extends State<AddViolationPage> {
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(
                           'Lat: ${_latitude!.toStringAsFixed(6)}, Lng: ${_longitude!.toStringAsFixed(6)}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     if (_locationError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
                         child: Text(
                           'Auto-detect is unavailable on this emulator right now. You can type the city, street, and landmark manually.',
-                          style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.orangeAccent, fontSize: 12),
                         ),
                       ),
                   ],
@@ -1021,11 +1130,12 @@ class _AddViolationPageState extends State<AddViolationPage> {
                   initialValue: selectedCityId,
                   validator: (_) =>
                       (selectedCityId == null || selectedCityId!.isEmpty) &&
-                          cityNameController.text.trim().isEmpty
-                      ? 'Select a city or type one manually'
-                      : null,
+                              cityNameController.text.trim().isEmpty
+                          ? 'Select a city or type one manually'
+                          : null,
                   builder: (field) {
-                    final selectedName = _lookupNameById(cities, selectedCityId);
+                    final selectedName =
+                        _lookupNameById(cities, selectedCityId);
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1042,7 +1152,8 @@ class _AddViolationPageState extends State<AddViolationPage> {
                                       setState(() {
                                         selectedCityId = value;
                                         cityNameController.text =
-                                            _lookupNameById(cities, value) ?? '';
+                                            _lookupNameById(cities, value) ??
+                                                '';
                                       });
                                       field.didChange(value);
                                     },
@@ -1079,13 +1190,13 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 ),
                 const SizedBox(height: 16),
               ] else ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'City list is not loaded from the server yet. Type the city name manually below.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.orangeAccent,
                         fontSize: 12,
                       ),
@@ -1139,12 +1250,11 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
               FormField<String>(
                 initialValue: selectedViolationTypeId,
-                validator: (_) =>
-                    violationTypes.isNotEmpty &&
-                            (selectedViolationTypeId == null ||
-                                selectedViolationTypeId!.isEmpty)
-                        ? 'Select violation type'
-                        : null,
+                validator: (_) => violationTypes.isNotEmpty &&
+                        (selectedViolationTypeId == null ||
+                            selectedViolationTypeId!.isEmpty)
+                    ? 'Select violation type'
+                    : null,
                 builder: (field) {
                   final selectedName =
                       _lookupNameById(violationTypes, selectedViolationTypeId);
@@ -1169,8 +1279,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                         child: InputDecorator(
                           decoration: InputDecoration(
                             labelText: 'Violation Type',
-                            prefixIcon:
-                                const Icon(Icons.warning_amber_rounded),
+                            prefixIcon: const Icon(Icons.warning_amber_rounded),
                             errorText: field.errorText,
                           ),
                           child: Row(

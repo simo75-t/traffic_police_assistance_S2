@@ -37,9 +37,17 @@ def extract_json_block(s: str) -> str:
 
 def lmstudio_extract(stt_text: str) -> Dict[str, Any]:
     """Ask LM Studio to convert transcript text into a structured JSON object."""
-    prompt = f"""
-You extract structured data from Arabic traffic violation speech transcript.
-Return ONLY valid JSON. No markdown. No extra words.
+    system_prompt = """
+You extract structured data from Arabic traffic violation speech transcripts for Syrian traffic police.
+Return ONLY one valid JSON object with the exact schema requested.
+Do not write markdown, comments, code fences, or explanatory text.
+If a value is missing, return an empty string for that field.
+Never invent a city, street, plate, or person name that is not supported by the transcript.
+""".strip()
+
+    user_prompt = f"""
+Transcript:
+{stt_text}
 
 Schema:
 {{
@@ -54,25 +62,36 @@ Schema:
   "description": ""
 }}
 
-Rules:
-- vehicle_plate digits only.
-- city: ONE Syrian city name only.
-- street_name: include the street or road phrase when possible.
-- landmark: location phrase.
-- violation_type short label.
-- Do NOT mix fields.
-
-Transcript:
-{stt_text}
+Extraction rules:
+1. vehicle_plate:
+   - digits only
+   - no spaces, no country code, no extra words
+2. city:
+   - one Syrian city/governorate name only
+   - do not put street names here
+3. street_name:
+   - include the street/road/highway phrase if clearly mentioned
+4. landmark:
+   - nearest landmark or notable place only
+5. violation_type:
+   - very short label in Arabic such as "اصطفاف مزدوج" or "قطع إشارة"
+6. description:
+   - one short Arabic sentence summarizing the violation
+7. Do not mix owner/model/color/location across fields.
+8. If uncertain, leave the field empty.
 """.strip()
 
     payload = {
         "model": LMSTUDIO_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
         "temperature": 0.0,
         "top_p": 1.0,
-        "max_tokens": 220,
+        "max_tokens": 260,
         "stream": False,
+        "response_format": {"type": "json_object"},
     }
     try:
         response = requests.post(LMSTUDIO_CHAT, json=payload, timeout=LMSTUDIO_TIMEOUT)
@@ -116,20 +135,25 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
         city = "دمشق" if city_fixed.strip().lower() in ("ريف دمشق", "ريفدمشق") else city_fixed
     if vio_fixed:
         violation = norm(vio_fixed)
-    if not desc:
-        parts = []
-        if plate:
-            parts.append(f"plate {plate}")
-        if owner:
-            parts.append(f"owner {owner}")
-        if city:
-            parts.append(f"city {city}")
-        if street:
-            parts.append(f"street {street}")
-        if landmark:
-            parts.append(f"landmark {landmark}")
-        if violation:
-            parts.append(f"violation {violation}")
+    parts = []
+    if plate:
+        parts.append(f"plate {plate}")
+    if owner:
+        parts.append(f"owner {owner}")
+    if city:
+        parts.append(f"city {city}")
+    if street:
+        parts.append(f"street {street}")
+    if landmark:
+        parts.append(f"landmark {landmark}")
+    if violation:
+        parts.append(f"violation {violation}")
+    if desc:
+        lower_desc = desc.lower()
+        missing_parts = [part for part in parts if part.lower() not in lower_desc]
+        if missing_parts:
+            desc = f"{desc} | {' | '.join(missing_parts)}"
+    else:
         desc = " | ".join(parts) if parts else norm(stt_text)
     return {
         "vehicle_plate": plate or "",

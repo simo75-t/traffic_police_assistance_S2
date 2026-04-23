@@ -117,7 +117,7 @@ def consume_forever():
                     correlation_id=(payload.get("correlation_id") if isinstance(payload, dict) else None),
                 )
             finally:
-                ch.basic_nack(method.delivery_tag, requeue=False)
+                ch.basic_ack(method.delivery_tag)
 
     ch.basic_consume(queue=JOBS_QUEUE, on_message_callback=on_message, auto_ack=False)
     log.info("Heatmap worker listening queue=%s routing_key=%s", JOBS_QUEUE, JOBS_ROUTING_KEY)

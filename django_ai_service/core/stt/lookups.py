@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import difflib
 import requests
+from django.conf import settings
 
 from core.stt.config import CITIES_API, VIOLATION_TYPES_API, log
 from core.stt.normalization import norm
@@ -15,11 +16,12 @@ from core.stt.normalization import norm
 
 CACHE = {"cities": None, "types": None, "ts": 0.0}
 CACHE_TTL = 300
+LOOKUP_TIMEOUT = 2
 
 
 def fetch_lookup_map(url: str, name_key: str = "name") -> Dict[str, Any]:
     """Fetch lookup items and convert them to a lower-case name-to-id map."""
-    response = requests.get(url, timeout=8)
+    response = requests.get(url, timeout=LOOKUP_TIMEOUT)
     response.raise_for_status()
     data = response.json()
     mapping: Dict[str, Any] = {}
@@ -47,10 +49,20 @@ def fetch_lookup_map(url: str, name_key: str = "name") -> Dict[str, Any]:
 def get_lookups() -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Return cached city and violation-type lookups."""
     now = time.time()
-    if CACHE["cities"] and CACHE["types"] and (now - CACHE["ts"]) < CACHE_TTL:
+    if CACHE["cities"] is not None and CACHE["types"] is not None and (now - CACHE["ts"]) < CACHE_TTL:
         return CACHE["cities"], CACHE["types"]
-    cities = fetch_lookup_map(CITIES_API, "name")
-    types = fetch_lookup_map(VIOLATION_TYPES_API, "name")
+
+    if getattr(settings, "TESTING", False):
+        CACHE["cities"], CACHE["types"], CACHE["ts"] = {}, {}, now
+        return CACHE["cities"], CACHE["types"]
+
+    try:
+        cities = fetch_lookup_map(CITIES_API, "name")
+        types = fetch_lookup_map(VIOLATION_TYPES_API, "name")
+    except Exception as exc:
+        log.warning("Lookup fetch failed: %r", exc)
+        cities, types = {}, {}
+
     CACHE["cities"], CACHE["types"], CACHE["ts"] = cities, types, now
     return cities, types
 

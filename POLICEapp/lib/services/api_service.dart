@@ -6,27 +6,36 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import '../models/dispatch_assignment.dart';
 import '../models/profile.dart';
 import '../models/vehicle_ocr_result.dart';
 import '../models/violation.dart';
 
+typedef _JobResultFetcher = Future<Map<String, dynamic>> Function();
+typedef _JobFailureMessageBuilder = String Function(
+    Map<String, dynamic> payload);
+
 class ApiService {
   static const Duration _defaultTimeout = Duration(seconds: 20);
+  static const Duration _writeTimeout = Duration(seconds: 30);
+  static const Duration _uploadTimeout = Duration(seconds: 60);
+  static const Duration _resultTimeout = Duration(seconds: 15);
+  static const Duration _jobPollDelay = Duration(seconds: 1);
+  static const Duration _jobPollTimeout = Duration(seconds: 130);
   static const int _maxAttempts = 3;
 
-  static Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await _sendJson(
-      method: 'POST',
+  static Future<Map<String, dynamic>> login(
+    String email,
+    String password,
+  ) async {
+    return _post(
       path: '/login',
       body: {
         'email': email,
         'password': password,
       },
       requiresAuth: false,
-    );
-
-    final decoded = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
-    return _normalizeMessage(decoded);
+    ).then(_decodeResponseMap);
   }
 
   static String? extractLoginToken(Map<String, dynamic> response) {
@@ -47,73 +56,135 @@ class ApiService {
   }
 
   static Future<Profile> getProfile(String token) async {
-    final res = await _sendJson(
-      method: 'GET',
-      path: '/profile',
+    final body = _decodeResponseMap(await _get(path: '/profile', token: token));
+    return _parseProfile(body);
+  }
+
+  static Future<Profile> updateProfile(
+    String token, {
+    required String name,
+    required String email,
+    String? phone,
+  }) async {
+    final response = await _post(
+      path: '/profile/update',
       token: token,
+      body: {
+        'name': name.trim(),
+        'email': email.trim(),
+        'phone': _trimOrNull(phone),
+      },
     );
 
-    final body = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
-    final profileData = _asMap(_extractData(body)) ?? const <String, dynamic>{};
-
-    return Profile.fromJson({
-      'id': profileData['id'] ?? 0,
-      'name': profileData['name'] ?? 'N/A',
-      'email': profileData['email'] ?? 'N/A',
-      'role': profileData['role'] ?? 'Unknown',
-      'isActive': profileData['is_active'] ?? false,
-      'profile_image': profileData['profile_image'],
-    });
+    return Profile.fromJson(
+      _asMap(_extractData(_decodeResponseMap(response))) ??
+          const <String, dynamic>{},
+    );
   }
 
   static Future<List<Violation>> getViolations(String token) async {
-    final res = await _sendJson(
-      method: 'GET',
-      path: '/violations',
-      token: token,
+    final response = await _get(path: '/violations', token: token);
+    return _decodeModelList(
+      response,
+      mapper: Violation.fromJson,
     );
-
-    final decoded =
-        _decodeMapOrListOrThrow(res.body, statusCode: res.statusCode);
-    final listJson = _extractList(decoded);
-    final result = <Violation>[];
-
-    for (final item in listJson) {
-      final mapItem = _toMapItem(item);
-      if (mapItem == null) continue;
-      result.add(Violation.fromJson(mapItem));
-    }
-
-    return result;
   }
 
   static Future<Map<String, dynamic>> createViolation(
     String token,
     Map<String, dynamic> data,
   ) async {
-    final res = await _sendJson(
-      method: 'POST',
+    return _decodeResponseMap(
+      await _post(
+        path: '/create',
+        token: token,
+        body: data,
+        timeout: _writeTimeout,
+      ),
+    );
+  }
+
+  static Future<http.Response> createViolationResponse(
+    String token,
+    Map<String, dynamic> data,
+  ) {
+    return _post(
       path: '/create',
       token: token,
       body: data,
-      timeout: const Duration(seconds: 30),
-    );
-
-    return _normalizeMessage(
-      _decodeMapOrThrow(res.body, statusCode: res.statusCode),
+      timeout: _writeTimeout,
     );
   }
 
   static Future<bool> logout(String token) async {
     try {
-      await _sendJson(method: 'POST', path: '/logout', token: token);
+      await _post(path: '/logout', token: token);
       return true;
-    } on AppApiException catch (e) {
-      if (e.statusCode == 401) {
-        return true;
-      }
-      return false;
+    } on AppApiException catch (error) {
+      return error.statusCode == 401;
     }
+  }
+
+  static Future<void> updateFcmToken(String token, String fcmToken) async {
+    await _post(
+      path: '/fcm-token',
+      token: token,
+      body: {'fcm_token': fcmToken},
+    );
+  }
+
+  static Future<http.Response> updateOfficerLiveLocation(
+    String token, {
+    required double latitude,
+    required double longitude,
+    String? availabilityStatus,
+  }) {
+    return _post(
+      path: '/officers/live-location',
+      token: token,
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+        if (_hasText(availabilityStatus))
+          'availability_status': availabilityStatus,
+      },
+    );
+  }
+
+  static Future<List<DispatchAssignment>> getDispatchAssignments(
+    String token,
+  ) async {
+    final response = await _get(path: '/officers/assignments', token: token);
+    return _decodeModelList(
+      response,
+      mapper: DispatchAssignment.fromJson,
+    );
+  }
+
+  static Future<void> startReportProcessing(
+    String token, {
+    required int assignmentId,
+    String? notes,
+  }) async {
+    await _updateAssignmentStatus(
+      token,
+      assignmentId: assignmentId,
+      action: 'start',
+      notes: notes,
+    );
+  }
+
+  static Future<void> completeReport(
+    String token, {
+    required int assignmentId,
+    String? notes,
+  }) async {
+    await _updateAssignmentStatus(
+      token,
+      assignmentId: assignmentId,
+      action: 'complete',
+      notes: notes,
+    );
   }
 
   static Future<List<dynamic>> getCities(String token) async {
@@ -129,7 +200,11 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getAiCities(String token) async {
-    return _getLookupList(token: token, path: '/ai_cities', entity: 'AI cities');
+    return _getLookupList(
+      token: token,
+      path: '/ai_cities',
+      entity: 'AI cities',
+    );
   }
 
   static Future<List<dynamic>> getAiViolationTypes(String token) async {
@@ -140,91 +215,54 @@ class ApiService {
     );
   }
 
-  static Future<http.Response> createViolationResponse(
-    String token,
-    Map<String, dynamic> data,
-  ) {
-    return _sendJson(
-      method: 'POST',
-      path: '/create',
-      token: token,
-      body: data,
-      timeout: const Duration(seconds: 30),
-    );
-  }
-
   static Future<String> requestPlateOcr(String token, File imageFile) async {
-    final streamed = await _sendMultipart(
-      path: '/ocr/plate',
-      token: token,
-      filePaths: [
-        _MultipartFilePath(field: 'image', path: imageFile.path),
-      ],
-      timeout: const Duration(seconds: 60),
+    return _requestJobId(
+      context: 'OCR',
+      response: await _sendMultipart(
+        path: '/ocr/plate',
+        token: token,
+        filePaths: [
+          _MultipartFilePath(field: 'image', path: imageFile.path),
+        ],
+        timeout: _uploadTimeout,
+      ),
     );
-
-    final res = await http.Response.fromStream(streamed);
-    final decoded = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
-    final jobId = _extractJobId(decoded);
-
-    if (jobId == null || jobId.isEmpty) {
-      throw AppApiException(
-        statusCode: res.statusCode,
-        message: 'Missing job_id in OCR response',
-        rawBody: res.body,
-      );
-    }
-
-    return jobId;
   }
 
-  static Future<Map<String, dynamic>> getOcrResult(String token, String jobId) async {
-    final res = await _sendJson(
-      method: 'GET',
+  static Future<Map<String, dynamic>> getOcrResult(
+    String token,
+    String jobId,
+  ) async {
+    final response = await _get(
       path: '/ocr/result/$jobId',
       token: token,
-      timeout: const Duration(seconds: 15),
+      timeout: _resultTimeout,
     );
-
-    return _decodeMapOrThrow(res.body, statusCode: res.statusCode);
+    return _decodeMapOrThrow(response.body, statusCode: response.statusCode);
   }
 
   static Future<VehicleOcrResult> pollVehicleOcr(
     String token,
     String jobId, {
-    Duration delay = const Duration(seconds: 1),
-    Duration timeout = const Duration(seconds: 130),
+    Duration delay = _jobPollDelay,
+    Duration timeout = _jobPollTimeout,
   }) async {
-    final start = DateTime.now();
+    final data = await _pollJobResult(
+      fetch: () => getOcrResult(token, jobId),
+      delay: delay,
+      timeout: timeout,
+      timeoutMessage:
+          'OCR timeout: result not ready after ${timeout.inSeconds}s',
+      failureMessage: (payload) => payload['error']?.toString() ?? 'OCR failed',
+      successStatuses: const {'success'},
+    );
 
-    while (true) {
-      if (DateTime.now().difference(start) > timeout) {
-        throw AppApiException(
-          statusCode: 408,
-          message: 'OCR timeout: result not ready after ${timeout.inSeconds}s',
-        );
-      }
-
-      final data = await getOcrResult(token, jobId);
-      final status = (data['status'] ?? '').toString().trim().toLowerCase();
-
-      if (status == 'success') {
-        final result = data['result'];
-        if (result is Map) {
-          return VehicleOcrResult.fromJson(Map<String, dynamic>.from(result));
-        }
-        return VehicleOcrResult.empty();
-      }
-
-      if (status == 'failed' || status == 'error') {
-        throw AppApiException(
-          statusCode: 500,
-          message: data['error']?.toString() ?? 'OCR failed',
-        );
-      }
-
-      await Future.delayed(delay);
+    final result = data['result'];
+    if (result is Map) {
+      return VehicleOcrResult.fromJson(Map<String, dynamic>.from(result));
     }
+
+    return VehicleOcrResult.empty();
   }
 
   static Future<VehicleOcrResult> readVehicleFromImage(
@@ -236,8 +274,8 @@ class ApiService {
   }
 
   static Future<String> readPlateFromImage(String token, File imageFile) async {
-    final v = await readVehicleFromImage(token, imageFile);
-    return v.plateNumber;
+    final result = await readVehicleFromImage(token, imageFile);
+    return result.plateNumber;
   }
 
   static Future<Map<String, dynamic>> searchViolations(
@@ -248,94 +286,183 @@ class ApiService {
     int? perPage,
     int? page,
   }) async {
-    final query = {
-      if (plate != null && plate.isNotEmpty) 'plate': plate,
-      if (from != null && from.isNotEmpty) 'from': from,
-      if (to != null && to.isNotEmpty) 'to': to,
-      if (perPage != null) 'per_page': perPage.toString(),
-      if (page != null) 'page': page.toString(),
-    };
-
-    final res = await _sendJson(
-      method: 'GET',
-      path: '/search-violations',
-      token: token,
-      queryParameters: query,
+    final decoded = _decodeResponseMap(
+      await _get(
+        path: '/search-violations',
+        token: token,
+        queryParameters: {
+          if (_hasText(plate)) 'plate': plate!,
+          if (_hasText(from)) 'from': from!,
+          if (_hasText(to)) 'to': to!,
+          if (perPage != null) 'per_page': perPage.toString(),
+          if (page != null) 'page': page.toString(),
+        },
+      ),
     );
 
-    final decoded = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
-    final data = _extractList(decoded);
-    final meta = _extractPaginationMeta(decoded);
-
     return {
-      'data': data,
-      'meta': meta,
+      'data': _extractList(decoded),
+      'meta': _extractPaginationMeta(decoded),
     };
   }
 
   static Future<String> requestStt(String token, File audioFile) async {
-    final streamed = await _sendMultipart(
-      path: '/stt/transcribe',
-      token: token,
-      filePaths: [
-        _MultipartFilePath(field: 'audio', path: audioFile.path),
-      ],
-      timeout: const Duration(seconds: 60),
+    return _requestJobId(
+      context: 'STT',
+      response: await _sendMultipart(
+        path: '/stt/transcribe',
+        token: token,
+        filePaths: [
+          _MultipartFilePath(field: 'audio', path: audioFile.path),
+        ],
+        timeout: _uploadTimeout,
+      ),
     );
-
-    final res = await http.Response.fromStream(streamed);
-    final decoded = _decodeMapOrThrow(res.body, statusCode: res.statusCode);
-    final jobId = _extractJobId(decoded);
-
-    if (jobId == null || jobId.isEmpty) {
-      throw AppApiException(
-        statusCode: res.statusCode,
-        message: 'Missing job_id in STT response',
-        rawBody: res.body,
-      );
-    }
-
-    return jobId;
   }
 
-  static Future<Map<String, dynamic>> getSttResult(String token, String jobId) async {
-    final res = await _sendJson(
-      method: 'GET',
+  static Future<Map<String, dynamic>> getSttResult(
+    String token,
+    String jobId,
+  ) async {
+    final response = await _get(
       path: '/stt/result/$jobId',
       token: token,
-      timeout: const Duration(seconds: 15),
+      timeout: _resultTimeout,
     );
-
-    return _decodeMapOrThrow(res.body, statusCode: res.statusCode);
+    return _decodeMapOrThrow(response.body, statusCode: response.statusCode);
   }
 
   static Future<Map<String, dynamic>> pollStt(
     String token,
     String jobId, {
-    Duration delay = const Duration(seconds: 1),
-    Duration timeout = const Duration(seconds: 130),
+    Duration delay = _jobPollDelay,
+    Duration timeout = _jobPollTimeout,
+  }) {
+    return _pollJobResult(
+      fetch: () => getSttResult(token, jobId),
+      delay: delay,
+      timeout: timeout,
+      timeoutMessage:
+          'STT timeout: result not ready after ${timeout.inSeconds}s',
+      failureMessage: (payload) => payload['error']?.toString() ?? 'STT failed',
+      successStatuses: const {'success', 'completed', 'done'},
+    );
+  }
+
+  static Future<void> _updateAssignmentStatus(
+    String token, {
+    required int assignmentId,
+    required String action,
+    String? notes,
   }) async {
-    final start = DateTime.now();
+    await _post(
+      path: '/officers/assignments/$assignmentId/$action',
+      token: token,
+      body: {
+        if (_hasText(notes)) 'notes': notes,
+      },
+    );
+  }
+
+  static Future<http.Response> _get({
+    required String path,
+    required String token,
+    Map<String, String>? queryParameters,
+    Duration timeout = _defaultTimeout,
+  }) {
+    return _sendJson(
+      method: 'GET',
+      path: path,
+      token: token,
+      queryParameters: queryParameters,
+      timeout: timeout,
+    );
+  }
+
+  static Future<http.Response> _post({
+    required String path,
+    String? token,
+    bool requiresAuth = true,
+    Map<String, dynamic>? body,
+    Duration timeout = _defaultTimeout,
+  }) {
+    return _sendJson(
+      method: 'POST',
+      path: path,
+      token: token,
+      requiresAuth: requiresAuth,
+      body: body,
+      timeout: timeout,
+    );
+  }
+
+  static Future<String> _requestJobId({
+    required String context,
+    required http.StreamedResponse response,
+  }) async {
+    final resolved = await http.Response.fromStream(response);
+    return _extractJobIdOrThrow(resolved, context: context);
+  }
+
+  static Profile _parseProfile(Map<String, dynamic> body) {
+    final profileData = _asMap(_extractData(body)) ?? const <String, dynamic>{};
+    return Profile.fromJson({
+      'id': profileData['id'] ?? 0,
+      'name': profileData['name'] ?? '',
+      'email': profileData['email'] ?? '',
+      'phone': profileData['phone'],
+      'role': profileData['role'] ?? '',
+      'is_active': profileData['is_active'] ?? false,
+      'profile_image': profileData['profile_image'],
+      'last_seen_at': profileData['last_seen_at'],
+    });
+  }
+
+  static List<T> _decodeModelList<T>(
+    http.Response response, {
+    required T Function(Map<String, dynamic>) mapper,
+  }) {
+    final decoded = _decodeMapOrListOrThrow(
+      response.body,
+      statusCode: response.statusCode,
+    );
+
+    return _extractList(decoded)
+        .map(_toMapItem)
+        .whereType<Map<String, dynamic>>()
+        .map(mapper)
+        .toList();
+  }
+
+  static Future<Map<String, dynamic>> _pollJobResult({
+    required _JobResultFetcher fetch,
+    required Duration delay,
+    required Duration timeout,
+    required String timeoutMessage,
+    required _JobFailureMessageBuilder failureMessage,
+    required Set<String> successStatuses,
+  }) async {
+    final startedAt = DateTime.now();
 
     while (true) {
-      if (DateTime.now().difference(start) > timeout) {
+      if (DateTime.now().difference(startedAt) > timeout) {
         throw AppApiException(
           statusCode: 408,
-          message: 'STT timeout: result not ready after ${timeout.inSeconds}s',
+          message: timeoutMessage,
         );
       }
 
-      final data = await getSttResult(token, jobId);
+      final data = await fetch();
       final status = (data['status'] ?? '').toString().trim().toLowerCase();
 
-      if (status == 'success' || status == 'completed' || status == 'done') {
+      if (successStatuses.contains(status)) {
         return data;
       }
 
       if (status == 'failed' || status == 'error') {
         throw AppApiException(
           statusCode: 500,
-          message: data['error']?.toString() ?? 'STT failed',
+          message: failureMessage(data),
         );
       }
 
@@ -356,17 +483,10 @@ class ApiService {
       queryParameters: queryParameters,
     );
 
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-
-    if (requiresAuth) {
-      if (token == null || token.isEmpty) {
-        throw const AppApiException(statusCode: 401, message: 'Missing token');
-      }
-      headers['Authorization'] = 'Bearer $token';
-    }
+    final headers = _buildJsonHeaders(
+      token: token,
+      requiresAuth: requiresAuth,
+    );
 
     Future<http.Response> run() {
       switch (method.toUpperCase()) {
@@ -403,18 +523,17 @@ class ApiService {
     final uri = Uri.parse('${Config.baseUrl}$path');
 
     Future<http.StreamedResponse> run() async {
-      final req = http.MultipartRequest('POST', uri);
-      req.headers['Accept'] = 'application/json';
-      req.headers['Authorization'] = 'Bearer $token';
-      if (fields != null) {
-        req.fields.addAll(fields);
-      }
+      final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll(_buildMultipartHeaders(token))
+        ..fields.addAll(fields ?? const <String, String>{});
+
       for (final filePath in filePaths) {
-        req.files.add(
+        request.files.add(
           await http.MultipartFile.fromPath(filePath.field, filePath.path),
         );
       }
-      return req.send().timeout(timeout);
+
+      return request.send().timeout(timeout);
     }
 
     final response = await _runWithRetry(run);
@@ -426,19 +545,50 @@ class ApiService {
     return response;
   }
 
+  static Map<String, String> _buildJsonHeaders({
+    String? token,
+    required bool requiresAuth,
+  }) {
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    if (requiresAuth) {
+      headers['Authorization'] = _buildAuthorizationHeader(token);
+    }
+
+    return headers;
+  }
+
+  static Map<String, String> _buildMultipartHeaders(String token) {
+    return <String, String>{
+      'Accept': 'application/json',
+      'Authorization': _buildAuthorizationHeader(token),
+    };
+  }
+
+  static String _buildAuthorizationHeader(String? token) {
+    if (!_hasText(token)) {
+      throw const AppApiException(statusCode: 401, message: 'Missing token');
+    }
+
+    return 'Bearer ${token!.trim()}';
+  }
+
   static Future<T> _runWithRetry<T>(Future<T> Function() action) async {
-    int attempt = 0;
+    var attempt = 0;
     Object? lastError;
 
     while (attempt < _maxAttempts) {
       attempt++;
       try {
         return await action();
-      } on TimeoutException catch (e) {
-        lastError = e;
-      } on SocketException catch (e) {
-        lastError = e;
-      } catch (e) {
+      } on TimeoutException catch (error) {
+        lastError = error;
+      } on SocketException catch (error) {
+        lastError = error;
+      } catch (_) {
         rethrow;
       }
 
@@ -452,6 +602,33 @@ class ApiService {
       message: 'Network request failed after $_maxAttempts attempts',
       rawBody: lastError.toString(),
     );
+  }
+
+  static Map<String, dynamic> _decodeResponseMap(http.Response response) {
+    return _normalizeMessage(
+      _decodeMapOrThrow(response.body, statusCode: response.statusCode),
+    );
+  }
+
+  static String _extractJobIdOrThrow(
+    http.Response response, {
+    required String context,
+  }) {
+    final decoded = _decodeMapOrThrow(
+      response.body,
+      statusCode: response.statusCode,
+    );
+    final jobId = _extractJobId(decoded);
+
+    if (!_hasText(jobId)) {
+      throw AppApiException(
+        statusCode: response.statusCode,
+        message: 'Missing job_id in $context response',
+        rawBody: response.body,
+      );
+    }
+
+    return jobId!;
   }
 
   static dynamic _decodeMapOrListOrThrow(
@@ -489,15 +666,46 @@ class ApiService {
   }
 
   static dynamic _decodeJsonSafe(String body) {
-    if (body.trim().isEmpty) {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) {
       return null;
     }
 
     try {
-      return jsonDecode(body);
+      return jsonDecode(trimmed);
     } catch (_) {
+      final cleaned = trimmed.replaceFirst('\uFEFF', '');
+      if (cleaned != trimmed) {
+        try {
+          return jsonDecode(cleaned);
+        } catch (_) {}
+      }
+
+      final extracted = _extractJsonEnvelope(cleaned);
+      if (extracted != null) {
+        try {
+          return jsonDecode(extracted);
+        } catch (_) {}
+      }
+
       return null;
     }
+  }
+
+  static String? _extractJsonEnvelope(String body) {
+    final objectStart = body.indexOf('{');
+    final objectEnd = body.lastIndexOf('}');
+    if (objectStart != -1 && objectEnd > objectStart) {
+      return body.substring(objectStart, objectEnd + 1);
+    }
+
+    final listStart = body.indexOf('[');
+    final listEnd = body.lastIndexOf(']');
+    if (listStart != -1 && listEnd > listStart) {
+      return body.substring(listStart, listEnd + 1);
+    }
+
+    return null;
   }
 
   static AppApiException _buildApiException(int statusCode, String body) {
@@ -527,23 +735,34 @@ class ApiService {
   }
 
   static String _defaultMessageFor(int statusCode) {
-    if (statusCode == 401) return 'Unauthenticated.';
-    if (statusCode == 422) return 'Validation failed';
-    if (statusCode >= 500) return 'Server error';
-    return 'Request failed ($statusCode)';
+    if (statusCode == 401) {
+      return 'ط§ظ†طھظ‡طھ ط§ظ„ط¬ظ„ط³ط© ط£ظˆ ظ„ظ… ظٹطھظ… طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„.';
+    }
+    if (statusCode == 422) {
+      return 'ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط¯ط®ظ„ط© ط؛ظٹط± طµط§ظ„ط­ط©.';
+    }
+    if (statusCode >= 500) {
+      return 'ط­ط¯ط« ط®ط·ط£ ظپظٹ ط§ظ„ط®ط§ط¯ظ….';
+    }
+    return 'ظپط´ظ„ طھظ†ظپظٹط° ط§ظ„ط·ظ„ط¨ ($statusCode).';
   }
 
   static Map<String, dynamic> _normalizeMessage(Map<String, dynamic> map) {
-    final out = Map<String, dynamic>.from(map);
-    final message = _firstNonEmptyString([out['message'], out['massage']]);
+    final normalized = Map<String, dynamic>.from(map);
+    final message = _firstNonEmptyString([
+      normalized['message'],
+      normalized['massage'],
+    ]);
+
     if (message != null) {
-      out['message'] = message;
+      normalized['message'] = message;
     }
-    return out;
+
+    return normalized;
   }
 
   static dynamic _extractData(dynamic decoded) {
-    dynamic current = decoded;
+    var current = decoded;
 
     while (true) {
       final map = _asMap(current);
@@ -572,8 +791,16 @@ class ApiService {
     required String path,
     required String entity,
   }) async {
-    final res = await _sendJson(method: 'GET', path: path, token: token);
-    final decoded = _decodeMapOrListOrThrow(res.body, statusCode: res.statusCode);
+    final response = await _sendJson(
+      method: 'GET',
+      path: path,
+      token: token,
+    );
+
+    final decoded = _decodeMapOrListOrThrow(
+      response.body,
+      statusCode: response.statusCode,
+    );
 
     if (decoded is List<dynamic>) {
       return decoded;
@@ -584,11 +811,16 @@ class ApiService {
       return data;
     }
 
-    _logParseFailure(res.body, res.statusCode, 'Expected list for $entity');
+    _logParseFailure(
+      response.body,
+      response.statusCode,
+      'Expected list for $entity',
+    );
+
     throw AppApiException(
-      statusCode: res.statusCode,
+      statusCode: response.statusCode,
       message: 'Unexpected response format: expected list of $entity',
-      rawBody: res.body,
+      rawBody: response.body,
     );
   }
 
@@ -612,11 +844,7 @@ class ApiService {
       }
 
       final map = _asMap(current);
-      if (map == null) {
-        continue;
-      }
-
-      if (!visited.add(current)) {
+      if (map == null || !visited.add(current)) {
         continue;
       }
 
@@ -642,11 +870,7 @@ class ApiService {
       final current = queue.removeAt(0);
       final map = _asMap(current);
 
-      if (map == null) {
-        continue;
-      }
-
-      if (!visited.add(current)) {
+      if (map == null || !visited.add(current)) {
         continue;
       }
 
@@ -674,8 +898,10 @@ class ApiService {
     return const <String, dynamic>{};
   }
 
-  static Map<String, dynamic> _paginationFieldsOnly(Map<String, dynamic> map) {
-    final out = <String, dynamic>{};
+  static Map<String, dynamic> _paginationFieldsOnly(
+    Map<String, dynamic> map,
+  ) {
+    final output = <String, dynamic>{};
 
     for (final key in const [
       'current_page',
@@ -686,11 +912,11 @@ class ApiService {
       'to',
     ]) {
       if (map.containsKey(key)) {
-        out[key] = map[key];
+        output[key] = map[key];
       }
     }
 
-    return out;
+    return output;
   }
 
   static Map<String, dynamic>? _asMap(dynamic value) {
@@ -713,20 +939,14 @@ class ApiService {
     if (item is String && item.trim().startsWith('{')) {
       try {
         final decoded = jsonDecode(item);
-        if (decoded is Map<String, dynamic>) return decoded;
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
       } catch (_) {
         return null;
-      }
-    }
-    return null;
-  }
-
-  static String? _firstNonEmptyString(List<dynamic> values) {
-    for (final value in values) {
-      final text = value?.toString().trim();
-      if (text != null && text.isNotEmpty) {
-        return text;
       }
     }
     return null;
@@ -742,13 +962,32 @@ class ApiService {
       final key = entry.key.toString();
       final item = entry.value;
       if (item is List) {
-        result[key] = item.map((e) => e.toString()).toList();
+        result[key] = item.map((element) => element.toString()).toList();
       } else if (item != null) {
         result[key] = [item.toString()];
       }
     }
 
     return result.isEmpty ? null : result;
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
+  }
+
+  static String? _trimOrNull(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  static bool _hasText(String? value) {
+    return value != null && value.trim().isNotEmpty;
   }
 
   static void _logParseFailure(String body, int statusCode, String reason) {
@@ -779,7 +1018,7 @@ class AppApiException implements Exception {
     }
 
     final details = errors!.entries
-        .map((e) => '${e.key}: ${e.value.join(', ')}')
+        .map((entry) => '${entry.key}: ${entry.value.join(', ')}')
         .join(' | ');
     return '$message ($details)';
   }

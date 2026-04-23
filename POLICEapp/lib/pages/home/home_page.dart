@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/profile.dart';
 import '../../models/violation.dart';
 import '../../services/api_service.dart';
+import '../../services/officer_presence_service.dart';
 import '../../services/secure_storage.dart';
 import '../../widgets/violation_card.dart';
 import '../../utils/data_utils.dart';
 import '../profile/profile_page.dart';
 import 'add_fine_page.dart';
+import 'dispatch_assignments_page.dart';
 import 'violation_details_page.dart';
 import 'my_violation.dart';
 import 'violations_search_page.dart';
@@ -30,6 +34,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadAll();
+    unawaited(OfficerPresenceService.start());
   }
 
   Future<void> _loadAll() async {
@@ -65,6 +70,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _refresh() async {
+    await OfficerPresenceService.syncNow();
     await _loadAll();
   }
 
@@ -197,12 +203,14 @@ class _HomePageState extends State<HomePage> {
                           onPressed: () async {
                             final token =
                                 _token ?? await SecureStorage.readToken();
+                            if (!context.mounted) {
+                              return;
+                            }
+
                             if (token == null) {
-                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content:
-                                      Text("No token found, please login"),
+                                  content: Text("No token found, please login"),
                                 ),
                               );
                               return;
@@ -220,26 +228,69 @@ class _HomePageState extends State<HomePage> {
 
                     const SizedBox(height: 18),
 
-                    // QUICK STATS
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            title: 'مخالفات اليوم',
-                            value: loading ? '...' : '$todayCount',
-                            icon: Icons.receipt_long,
-                          ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF144A8F), Color(0xFF0A1E3D)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            title: 'إجمالي المخالفات',
-                            value: loading ? '...' : '$total',
-                            icon: Icons.local_police,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 18,
+                            offset: const Offset(0, 10),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'لوحة التحكم',
+                            style: textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'تابع المخالفات والبلاغات وحالة الاتصال بسرعة.',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: Colors.white70,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _MiniStatusBadge(
+                                  label: 'اليوم',
+                                  value: '$todayCount',
+                                  icon: Icons.today,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _MiniStatusBadge(
+                                  label: 'الإجمالي',
+                                  value: '$total',
+                                  icon: Icons.local_police,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
+
+                    const SizedBox(height: 18),
+
+                    // QUICK STATS
 
                     const SizedBox(height: 18),
 
@@ -265,7 +316,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
 
                     _SecondaryActionButton(
-                      title: 'Violations',
+                      title: 'المخالفات',
                       subtitle: 'عرض كل المخالفات التي سجلتها',
                       icon: Icons.list_alt,
                       onTap: () {
@@ -281,8 +332,24 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
 
                     _SecondaryActionButton(
-                      title: 'Search',
-                      subtitle: 'Search violations by plate and date',
+                      title: 'بلاغات الاستجابة',
+                      subtitle: 'عرض البلاغات المخصصة لك',
+                      icon: Icons.notifications_active,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DispatchAssignmentsPage(),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _SecondaryActionButton(
+                      title: 'بحث',
+                      subtitle: 'بحث المخالفات باللوحة والتاريخ',
                       icon: Icons.manage_search,
                       onTap: () {
                         Navigator.push(
@@ -359,55 +426,53 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String title;
+class _MiniStatusBadge extends StatelessWidget {
+  final String label;
   final String value;
   final IconData icon;
 
-  const _StatCard({
-    required this.title,
+  const _MiniStatusBadge({
+    required this.label,
     required this.value,
     required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        color: Colors.white.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Colors.white),
+            child: Icon(icon, color: Colors.white, size: 18),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style:
-                        textTheme.bodySmall?.copyWith(color: Colors.white70)),
+                Text(label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: Colors.white70)),
                 const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text(value,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        )),
               ],
             ),
           ),
@@ -449,7 +514,7 @@ class _PrimaryActionButton extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
+                color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: Colors.white),
@@ -470,7 +535,7 @@ class _PrimaryActionButton extends StatelessWidget {
                   Text(
                     subtitle,
                     style: textTheme.bodySmall
-                        ?.copyWith(color: Colors.white.withOpacity(0.9)),
+                        ?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
                   ),
                 ],
               ),
@@ -506,9 +571,9 @@ class _SecondaryActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.10),
+          color: Colors.white.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Row(
           children: [
@@ -516,7 +581,7 @@ class _SecondaryActionButton extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
+                color: Colors.white.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(icon, color: Colors.white),

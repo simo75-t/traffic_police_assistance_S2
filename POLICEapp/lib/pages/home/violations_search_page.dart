@@ -19,73 +19,122 @@ class _ViolationsSearchServerPageState
     extends State<ViolationsSearchServerPage> {
   final _plateCtrl = TextEditingController();
 
-  DateTime? fromDate;
-  DateTime? toDate;
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  bool _loading = false;
+  bool _loadingMore = false;
+  String? _error;
+  List<Violation> _items = [];
+  int _currentPage = 1;
+  int _lastPage = 1;
+  int _total = 0;
 
-  bool loading = false;
-  bool loadingMore = false;
-  String? error;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _search(page: 1);
+      }
+    });
+  }
 
-  List<Violation> items = [];
-  int currentPage = 1;
-  int lastPage = 1;
-
-  void _resetAndSearch() {
-    items.clear();
-    currentPage = 1;
-    _search(page: 1);
+  @override
+  void dispose() {
+    _plateCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _search({int page = 1}) async {
     setState(() {
-      loading = page == 1;
-      loadingMore = page > 1;
-      error = null;
+      _loading = page == 1;
+      _loadingMore = page > 1;
+      _error = null;
     });
 
     try {
-      final token = await SecureStorage.readToken();
-      if (token == null) throw Exception("No token found, please login");
-
-      final res = await ApiService.searchViolations(
-        token,
-        plate: _plateCtrl.text,
-        from: fromDate == null
-            ? null
-            : DateFormat('yyyy-MM-dd').format(fromDate!),
-        to: toDate == null
-            ? null
-            : DateFormat('yyyy-MM-dd').format(toDate!),
-        perPage: 10,
-        page: page,
-      );
-
-      final data = res['data'] as List<dynamic>;
-      final meta = res['meta'] as Map<String, dynamic>;
-
-      final list = data
-          .map((e) => Violation.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final result = await _runSearchRequest(page: page);
+      final data = result.$1;
+      final meta = result.$2;
 
       setState(() {
         if (page == 1) {
-          items = list;
+          _items = data;
         } else {
-          items.addAll(list);
+          _items.addAll(data);
         }
-        currentPage = meta['current_page'] ?? 1;
-        lastPage = meta['last_page'] ?? 1;
+        _currentPage = (meta['current_page'] as num?)?.toInt() ?? page;
+        _lastPage = (meta['last_page'] as num?)?.toInt() ?? 1;
+        _total = (meta['total'] as num?)?.toInt() ?? _items.length;
       });
     } catch (e) {
-      setState(() {
-        error = e.toString();
-      });
+      setState(() => _error = e.toString());
     } finally {
-      setState(() {
-        loading = false;
-        loadingMore = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
+      }
     }
+  }
+
+  Future<(List<Violation>, Map<String, dynamic>)> _runSearchRequest({
+    required int page,
+  }) async {
+    Object? lastError;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final token = await SecureStorage.readToken();
+        if (token == null || token.isEmpty) {
+          throw Exception('يجب تسجيل الدخول أولاً');
+        }
+
+        final res = await ApiService.searchViolations(
+          token,
+          plate: _plateCtrl.text,
+          from: _fromDate == null
+              ? null
+              : DateFormat('yyyy-MM-dd').format(_fromDate!),
+          to: _toDate == null
+              ? null
+              : DateFormat('yyyy-MM-dd').format(_toDate!),
+          perPage: 10,
+          page: page,
+        );
+
+        final rawData = res['data'];
+        final rawMeta = res['meta'];
+
+        final data = (rawData is List ? rawData : const <dynamic>[])
+            .whereType<Map>()
+            .map((e) => Violation.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        final meta = rawMeta is Map
+            ? Map<String, dynamic>.from(rawMeta)
+            : <String, dynamic>{};
+
+        return (data, meta);
+      } catch (e) {
+        lastError = e;
+        if (attempt == 0) {
+          await Future.delayed(const Duration(milliseconds: 350));
+          continue;
+        }
+      }
+    }
+
+    throw lastError ?? Exception('تعذر تنفيذ البحث');
+  }
+
+  void _resetAndSearch() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _items = [];
+      _currentPage = 1;
+    });
+    _search(page: 1);
   }
 
   Future<void> _pickFrom() async {
@@ -93,10 +142,10 @@ class _ViolationsSearchServerPageState
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
-      initialDate: fromDate ?? DateTime.now(),
+      initialDate: _fromDate ?? DateTime.now(),
     );
     if (picked == null) return;
-    setState(() => fromDate = picked);
+    setState(() => _fromDate = picked);
   }
 
   Future<void> _pickTo() async {
@@ -104,18 +153,16 @@ class _ViolationsSearchServerPageState
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
-      initialDate: toDate ?? DateTime.now(),
+      initialDate: _toDate ?? DateTime.now(),
     );
     if (picked == null) return;
-    setState(() => toDate = picked);
+    setState(() => _toDate = picked);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('بحث المخالفات'),
-      ),
+      appBar: AppBar(title: const Text('البحث في المخالفات')),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -126,15 +173,16 @@ class _ViolationsSearchServerPageState
         ),
         child: Column(
           children: [
-            // Filters Panel
             Padding(
               padding: const EdgeInsets.all(12),
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -142,117 +190,163 @@ class _ViolationsSearchServerPageState
                       controller: _plateCtrl,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'رقم السيارة',
+                        labelText: 'رقم المركبة',
                         labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon:
-                            const Icon(Icons.directions_car, color: Colors.white),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide:
-                              BorderSide(color: Colors.white.withOpacity(0.15)),
+                        prefixIcon: const Icon(
+                          Icons.directions_car_outlined,
+                          color: Colors.white,
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide:
-                              BorderSide(color: Colors.white.withOpacity(0.35)),
-                        ),
+                        suffixIcon: _plateCtrl.text.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  _plateCtrl.clear();
+                                  setState(() {});
+                                },
+                                icon: const Icon(
+                                  Icons.clear,
+                                  color: Colors.white70,
+                                ),
+                              ),
                       ),
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _resetAndSearch(),
                     ),
-
-                    const SizedBox(height: 10),
-
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: _DateChip(
-                            label: 'من',
-                            value: fromDate,
+                            label: 'من تاريخ',
+                            value: _fromDate,
                             onTap: _pickFrom,
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: _DateChip(
-                            label: 'إلى',
-                            value: toDate,
+                            label: 'إلى تاريخ',
+                            value: _toDate,
                             onTap: _pickTo,
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _resetAndSearch,
+                            icon: const Icon(Icons.search),
+                            label: const Text('بحث'),
+                          ),
+                        ),
                         const SizedBox(width: 10),
-                        ElevatedButton(
-                          onPressed: _resetAndSearch,
-                          child: const Text('بحث'),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              _plateCtrl.clear();
+                              setState(() {
+                                _fromDate = null;
+                                _toDate = null;
+                              });
+                              _resetAndSearch();
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('إعادة تعيين'),
+                          ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        'عدد النتائج: $_total',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-
             Expanded(
-              child: Builder(builder: (_) {
-                if (loading && currentPage == 1) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+              child: Builder(
+                builder: (_) {
+                  if (_loading && _currentPage == 1) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (error != null) {
-                  return Center(
-                    child: Text(error!, style: const TextStyle(color: Colors.red)),
-                  );
-                }
+                  if (_error != null) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'تعذر تنفيذ البحث:\n$_error',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    );
+                  }
 
-                if (items.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'لا توجد نتائج',
-                      style: TextStyle(color: Colors.white),
+                  if (_items.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'لا توجد مخالفات مطابقة للبحث.',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    );
+                  }
+
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: (scrollInfo) {
+                      if (!_loadingMore &&
+                          _currentPage < _lastPage &&
+                          scrollInfo.metrics.pixels >=
+                              scrollInfo.metrics.maxScrollExtent - 100) {
+                        _search(page: _currentPage + 1);
+                        return true;
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: _items.length + (_loadingMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= _items.length) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+
+                        final violation = _items[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          child: ViolationCard(
+                            violation: violation,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ViolationDetailsPage(
+                                    violation: violation,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
                   );
-                }
-
-                return NotificationListener<ScrollNotification>(
-                  onNotification: (scrollInfo) {
-                    if (!loadingMore &&
-                        currentPage < lastPage &&
-                        scrollInfo.metrics.pixels >=
-                            scrollInfo.metrics.maxScrollExtent - 100) {
-                      _search(page: currentPage + 1);
-                      return true;
-                    }
-                    return false;
-                  },
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    itemCount: items.length + (loadingMore ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index >= items.length) {
-                        return const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      final v = items[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        child: ViolationCard(
-                          violation: v,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ViolationDetailsPage(violation: v),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                );
-              }),
+                },
+              ),
             ),
           ],
         ),
@@ -274,9 +368,8 @@ class _DateChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = value == null
-        ? '—'
-        : DateFormat('yyyy-MM-dd').format(value!);
+    final text =
+        value == null ? 'غير محدد' : DateFormat('yyyy-MM-dd').format(value!);
 
     return InkWell(
       onTap: onTap,
@@ -285,17 +378,23 @@ class _DateChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: Colors.white.withOpacity(0.10),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          color: Colors.white.withValues(alpha: 0.10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Row(
           children: [
-            Text(label, style: const TextStyle(color: Colors.white70)),
+            const Icon(Icons.calendar_today, color: Colors.white, size: 18),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(text, style: const TextStyle(color: Colors.white)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  Text(text, style: const TextStyle(color: Colors.white)),
+                ],
+              ),
             ),
-            const Icon(Icons.calendar_today, color: Colors.white, size: 18),
           ],
         ),
       ),

@@ -8,7 +8,8 @@ class AppDateUtils {
     if (s.isEmpty) return null;
 
     // Fix "YYYY-MM-DD HH:mm:ss" -> "YYYY-MM-DDTHH:mm:ss"
-    final fixed = s.contains(' ') && !s.contains('T') ? s.replaceFirst(' ', 'T') : s;
+    final fixed =
+        s.contains(' ') && !s.contains('T') ? s.replaceFirst(' ', 'T') : s;
 
     return DateTime.tryParse(fixed);
   }

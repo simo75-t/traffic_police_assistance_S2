@@ -4,6 +4,7 @@
 
 # Django / Python
 django_ai_service/.venv/
+django_ai_service/.venv311/
 django_ai_service/__pycache__/
 **/__pycache__/
 *.pyc
@@ -11,6 +12,7 @@ django_ai_service/__pycache__/
 *.pyd
 *.sqlite3
 *.db
+django_ai_service/test_results.txt
 
 # Local environment
 .env

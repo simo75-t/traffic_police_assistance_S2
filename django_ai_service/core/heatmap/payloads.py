@@ -99,7 +99,7 @@ def validate_payload(payload: dict[str, Any]) -> HeatmapPayload:
 
     include_ranking = _parse_bool(payload.get("include_ranking", False))
     include_trend = _parse_bool(payload.get("include_trend", False))
-    include_synthetic = True
+    include_synthetic = _parse_bool(payload.get("include_synthetic", True))
 
     comparison_mode = str(payload.get("comparison_mode") or "").strip().lower()
     if not include_trend:

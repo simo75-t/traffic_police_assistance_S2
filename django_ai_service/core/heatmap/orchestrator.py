@@ -5,7 +5,6 @@ import logging
 from datetime import datetime
 
 from django.conf import settings
-from django.db import transaction
 
 from core.heatmap.cache_keys import build_cache_key
 from core.heatmap.cache_service import HeatmapCacheService
@@ -17,7 +16,6 @@ from core.heatmap.ranking_service import build_ranking
 from core.heatmap.spatial_grid_service import build_grid, is_within_bbox, normalize_city_key
 from core.heatmap.temporal_bucket_service import resolve_time_bucket
 from core.heatmap.trend_service import compare_heatmaps, shift_period
-from core.models import AnalyticsJob
 
 
 log = logging.getLogger("HEATMAP_SERVICE")
@@ -39,31 +37,13 @@ class HeatmapOrchestrator:
     def generate_heatmap(self, payload: dict) -> dict:
         parsed = validate_payload(payload)
 
-        with transaction.atomic():
-            job, _ = AnalyticsJob.objects.get_or_create(
-                request_id=parsed.request_id,
-                defaults={
-                    "job_type": parsed.job_type,
-                    "status": AnalyticsJob.STATUS_PENDING,
-                    "payload_json": json.dumps(payload, ensure_ascii=False),
-                },
-            )
-            job.job_type = parsed.job_type
-            job.status = AnalyticsJob.STATUS_PROCESSING
-            job.payload_json = json.dumps(payload, ensure_ascii=False)
-            job.error_message = ""
-            job.save(update_fields=["job_type", "status", "payload_json", "error_message", "updated_at"])
-
         cache_key = build_cache_key(parsed.to_cache_filters())
         cache = self.cache_service.get_valid(cache_key)
         if cache:
-            result = self.cache_service.to_result(cache=cache, request_id=parsed.request_id)
-            self._complete_job(job=job, result=result, cache_key=cache_key)
-            return result
+            return self.cache_service.to_result(cache=cache, request_id=parsed.request_id)
 
         result = self._generate_fresh(parsed=parsed, cache_key=cache_key)
         self.cache_service.save(payload=parsed, cache_key=cache_key, result=result)
-        self._complete_job(job=job, result=result, cache_key=cache_key)
         return result
 
     def _generate_fresh(self, parsed: HeatmapPayload, cache_key: str) -> dict:
@@ -179,22 +159,28 @@ class HeatmapOrchestrator:
 
         rows = []
         for cell, intensity in zip(grid_cells, intensities):
-            rows.append(
-                {
-                    "cell_id": cell["cell_id"],
-                    "lat": round(cell["center_lat"], 6),
-                    "lng": round(cell["center_lng"], 6),
-                    "intensity": round(float(intensity), 6),
-                }
-            )
+            row = {
+                "cell_id": cell["cell_id"],
+                "lat": round(cell["center_lat"], 6),
+                "lng": round(cell["center_lng"], 6),
+                "intensity": round(float(intensity), 6),
+            }
+            representative = self._representative_point_for_cell(cell=cell, points=points)
+            if representative is not None:
+                row["lat"] = round(float(representative["latitude"]), 6)
+                row["lng"] = round(float(representative["longitude"]), 6)
+                row["area_label"] = str(representative.get("location_label") or "").strip()
+                row["location_label"] = row["area_label"]
+            rows.append(row)
+
         visible_rows = self._compact_heatmap_points(rows=rows, total_points=len(points))
         for row in visible_rows:
-            row["area_label"] = self._nearest_location_label_for_coords(
-                lat=float(row["lat"]),
-                lng=float(row["lng"]),
-                points=points,
-                fallback_label=city,
-            )
+            if not row.get("area_label"):
+                row["area_label"] = self._nearest_location_label_for_coords(
+                    lat=float(row["lat"]),
+                    lng=float(row["lng"]),
+                    points=points,
+                )
         return visible_rows
 
     def _compact_heatmap_points(self, rows: list[dict], total_points: int) -> list[dict]:
@@ -214,7 +200,41 @@ class HeatmapOrchestrator:
         dynamic_limit = min(max_return_points, max(settings.HEATMAP_TOP_N * 3, total_points * 2))
         return filtered_rows[:dynamic_limit]
 
-    def _nearest_location_label_for_coords(self, lat: float, lng: float, points: list[dict], fallback_label: str = "") -> str:
+    def _representative_point_for_cell(self, cell: dict, points: list[dict]) -> dict | None:
+        valid_candidates = []
+        for point in points:
+            try:
+                lat = float(point["latitude"])
+                lng = float(point["longitude"])
+            except (TypeError, ValueError, KeyError):
+                continue
+
+            if not (cell["min_lat"] <= lat <= cell["max_lat"] and cell["min_lng"] <= lng <= cell["max_lng"]):
+                continue
+
+            valid_candidates.append((point, lat, lng))
+
+        if not valid_candidates:
+            return None
+
+        center_lat = (cell["min_lat"] + cell["max_lat"]) / 2
+        center_lng = (cell["min_lng"] + cell["max_lng"]) / 2
+
+        def score(candidate):
+            point, lat, lng = candidate
+            label = str(point.get("location_label") or "").strip()
+            severity = float(point.get("severity_weight") or 1.0)
+            distance = (lat - center_lat) ** 2 + (lng - center_lng) ** 2
+            return (
+                1 if label else 0,
+                severity,
+                -distance,
+            )
+
+        best = max(valid_candidates, key=score)
+        return best[0]
+
+    def _nearest_location_label_for_coords(self, lat: float, lng: float, points: list[dict]) -> str:
         nearest_real = None
         nearest_real_distance = None
         nearest_demo = None
@@ -240,9 +260,9 @@ class HeatmapOrchestrator:
 
         if nearest_real:
             return nearest_real
-        if fallback_label:
-            return str(fallback_label).strip()
-        return nearest_demo or ""
+        if nearest_demo:
+            return nearest_demo
+        return ""
 
     def _build_previous_heatmap(self, parsed: HeatmapPayload) -> list[dict]:
         previous_from, previous_to = shift_period(parsed.date_from, parsed.date_to, parsed.comparison_mode)
@@ -270,25 +290,16 @@ class HeatmapOrchestrator:
         previous_points = self._prepare_points(previous_records, previous_payload)
         return self._run_analysis(previous_points, city=parsed.city, grid_size_meters=parsed.grid_size_meters)
 
-    def _complete_job(self, job: AnalyticsJob, result: dict, cache_key: str) -> None:
-        job.status = AnalyticsJob.STATUS_COMPLETED
-        job.result_reference = cache_key
-        job.result_json = json.dumps(result, ensure_ascii=False)
-        job.error_message = ""
-        job.save(update_fields=["status", "result_reference", "result_json", "error_message", "updated_at"])
-
     def fail_job(self, payload: dict, exc: Exception) -> None:
         request_id = str(payload.get("request_id") or "").strip()
         if not request_id:
             return
-        job, _ = AnalyticsJob.objects.get_or_create(
-            request_id=request_id,
-            defaults={"job_type": str(payload.get("job_type") or "generate_heatmap")},
+        log.warning(
+            "Heatmap generation failed before Laravel AiJob was updated request_id=%s error=%s payload=%s",
+            request_id,
+            exc,
+            json.dumps(payload, ensure_ascii=False),
         )
-        job.status = AnalyticsJob.STATUS_FAILED
-        job.error_message = str(exc)
-        job.payload_json = json.dumps(payload, ensure_ascii=False)
-        job.save(update_fields=["status", "error_message", "payload_json", "updated_at"])
 
     def _parse_datetime(self, value):
         if not value:

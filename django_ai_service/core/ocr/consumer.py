@@ -109,7 +109,7 @@ def consume_forever():
                     correlation_id=correlation_id,
                 )
             finally:
-                ch.basic_nack(method.delivery_tag, requeue=False)
+                ch.basic_ack(method.delivery_tag)
 
     ch.basic_consume(queue=JOBS_QUEUE, on_message_callback=on_message, auto_ack=False)
     log.info("AI OCR worker listening queue=%s routing_key=%s", JOBS_QUEUE, JOBS_ROUTING_KEY)
