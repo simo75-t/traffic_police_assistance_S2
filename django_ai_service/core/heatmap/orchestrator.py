@@ -5,7 +5,6 @@ import logging
 from datetime import datetime
 
 from django.conf import settings
-from django.db import transaction
 
 from core.heatmap.cache_keys import build_cache_key
 from core.heatmap.cache_service import HeatmapCacheService
@@ -17,7 +16,6 @@ from core.heatmap.ranking_service import build_ranking
 from core.heatmap.spatial_grid_service import build_grid, is_within_bbox, normalize_city_key
 from core.heatmap.temporal_bucket_service import resolve_time_bucket
 from core.heatmap.trend_service import compare_heatmaps, shift_period
-from core.models import AnalyticsJob
 
 
 log = logging.getLogger("HEATMAP_SERVICE")
@@ -39,31 +37,13 @@ class HeatmapOrchestrator:
     def generate_heatmap(self, payload: dict) -> dict:
         parsed = validate_payload(payload)
 
-        with transaction.atomic():
-            job, _ = AnalyticsJob.objects.get_or_create(
-                request_id=parsed.request_id,
-                defaults={
-                    "job_type": parsed.job_type,
-                    "status": AnalyticsJob.STATUS_PENDING,
-                    "payload_json": json.dumps(payload, ensure_ascii=False),
-                },
-            )
-            job.job_type = parsed.job_type
-            job.status = AnalyticsJob.STATUS_PROCESSING
-            job.payload_json = json.dumps(payload, ensure_ascii=False)
-            job.error_message = ""
-            job.save(update_fields=["job_type", "status", "payload_json", "error_message", "updated_at"])
-
         cache_key = build_cache_key(parsed.to_cache_filters())
         cache = self.cache_service.get_valid(cache_key)
         if cache:
-            result = self.cache_service.to_result(cache=cache, request_id=parsed.request_id)
-            self._complete_job(job=job, result=result, cache_key=cache_key)
-            return result
+            return self.cache_service.to_result(cache=cache, request_id=parsed.request_id)
 
         result = self._generate_fresh(parsed=parsed, cache_key=cache_key)
         self.cache_service.save(payload=parsed, cache_key=cache_key, result=result)
-        self._complete_job(job=job, result=result, cache_key=cache_key)
         return result
 
     def _generate_fresh(self, parsed: HeatmapPayload, cache_key: str) -> dict:
@@ -310,25 +290,16 @@ class HeatmapOrchestrator:
         previous_points = self._prepare_points(previous_records, previous_payload)
         return self._run_analysis(previous_points, city=parsed.city, grid_size_meters=parsed.grid_size_meters)
 
-    def _complete_job(self, job: AnalyticsJob, result: dict, cache_key: str) -> None:
-        job.status = AnalyticsJob.STATUS_COMPLETED
-        job.result_reference = cache_key
-        job.result_json = json.dumps(result, ensure_ascii=False)
-        job.error_message = ""
-        job.save(update_fields=["status", "result_reference", "result_json", "error_message", "updated_at"])
-
     def fail_job(self, payload: dict, exc: Exception) -> None:
         request_id = str(payload.get("request_id") or "").strip()
         if not request_id:
             return
-        job, _ = AnalyticsJob.objects.get_or_create(
-            request_id=request_id,
-            defaults={"job_type": str(payload.get("job_type") or "generate_heatmap")},
+        log.warning(
+            "Heatmap generation failed before Laravel AiJob was updated request_id=%s error=%s payload=%s",
+            request_id,
+            exc,
+            json.dumps(payload, ensure_ascii=False),
         )
-        job.status = AnalyticsJob.STATUS_FAILED
-        job.error_message = str(exc)
-        job.payload_json = json.dumps(payload, ensure_ascii=False)
-        job.save(update_fields=["status", "error_message", "payload_json", "updated_at"])
 
     def _parse_datetime(self, value):
         if not value:

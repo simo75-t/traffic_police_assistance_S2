@@ -52,6 +52,14 @@ AR_NUM_WORDS = {
     "تسعه": "9",
     "٩": "9",
 }
+ARABIC_DIGITS = str.maketrans(
+    "٠١٢٣٤٥٦٧٨٩",
+    "0123456789",
+)
+ARABIC_DIGITS = str.maketrans(
+    "٠١٢٣٤٥٦٧٨٩",
+    "0123456789",
+)
 
 AR_COLORS = {
     "احمر": "أحمر",
@@ -102,10 +110,12 @@ def norm(value: Any) -> str:
 
 
 def words_to_digits(text: str) -> str:
-    """Convert Arabic number words into digits before extraction."""
+    """Convert Arabic number words and Eastern Arabic digits into ASCII digits."""
     if not text:
         return ""
-    out = text
+
+    out = str(text)
+    out = out.translate(ARABIC_DIGITS)
     for word, digit in AR_NUM_WORDS.items():
         out = re.sub(rf"(?<!\S){re.escape(word)}(?!\S)", digit, out)
     return out
@@ -113,7 +123,8 @@ def words_to_digits(text: str) -> str:
 
 def normalize_plate(text: str) -> str:
     """Keep only numeric plate content after normalization."""
-    return re.sub(r"[^0-9]", "", norm(words_to_digits(text)))
+    normalized = norm(words_to_digits(text))
+    return re.sub(r"[^0-9]", "", normalized)
 
 
 def best_plate_from_text(text: str) -> str:
@@ -157,6 +168,11 @@ def extract_street_from_text(text: str) -> Optional[str]:
 def clean_owner(text: str) -> Optional[str]:
     """Keep only the likely owner name fragment from mixed text."""
     value = norm(text)
+    if not value:
+        return None
+
+    value = re.sub(r"^مالك السيارة\s*", "", value)
+    value = re.sub(r"^مالك\s*", "", value)
     value = re.split(
         r"\b(نوع|لون|السيارة|المخالفة|شارع|طريق|المدينة|مدينة|أمام|مقابل|جنب|بالقرب|قرب)\b",
         value,
@@ -171,7 +187,7 @@ def clean_landmark(text: str) -> Optional[str]:
     if not value:
         return None
     value = re.split(
-        r"\b(المخالفة|نوع المخالفة|اصطفاف|تجاوز|إشارة|حزام|الهاتف)\b",
+        r"\b(قبل|المخالفة|نوع المخالفة|اصطفاف|تجاوز|إشارة|حزام|الهاتف)\b",
         value,
     )[0].strip()
     return value or None

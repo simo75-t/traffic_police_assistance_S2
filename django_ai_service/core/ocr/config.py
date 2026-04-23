@@ -1,12 +1,11 @@
 """OCR configuration values.
 
-This file centralizes RabbitMQ, MongoDB, and Ollama settings.
+This file centralizes RabbitMQ and Ollama settings for the OCR worker.
 """
 
 import logging
 
 import requests
-from pymongo import MongoClient
 
 from core import default_settings
 from core.runtime_settings import get_runtime_setting
@@ -25,11 +24,6 @@ EXCHANGE = get_runtime_setting("AI_RMQ_EXCHANGE", default_settings.AI_RMQ_EXCHAN
 JOBS_QUEUE = get_runtime_setting("AI_RMQ_OCR_QUEUE", default_settings.AI_RMQ_OCR_QUEUE)
 JOBS_ROUTING_KEY = get_runtime_setting("AI_RMQ_OCR_ROUTING_KEY", default_settings.AI_RMQ_OCR_ROUTING_KEY)
 RESULTS_ROUTING_KEY = get_runtime_setting("AI_RMQ_RESULTS_ROUTING_KEY", default_settings.AI_RMQ_RESULTS_ROUTING_KEY)
-
-MONGO_URL = get_runtime_setting("MONGO_URL", default_settings.MONGO_URL)
-mongo = MongoClient(MONGO_URL)
-db = mongo[get_runtime_setting("MONGO_DB", default_settings.MONGO_DB)]
-results_col = db[get_runtime_setting("MONGO_OCR_COLLECTION", default_settings.MONGO_OCR_COLLECTION)]
 
 OLLAMA_URL = get_runtime_setting("OLLAMA_URL", default_settings.OLLAMA_URL)
 OLLAMA_MODEL = get_runtime_setting("OLLAMA_MODEL", default_settings.OLLAMA_MODEL)

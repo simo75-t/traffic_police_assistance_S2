@@ -17,6 +17,8 @@ class Violation {
   final bool? isSynthetic;
   final String? severityLevel;
   final String? status;
+  final String? pdfPath;
+  final String? pdfUrl;
 
   Violation({
     required this.id,
@@ -35,6 +37,8 @@ class Violation {
     this.isSynthetic,
     this.severityLevel,
     this.status,
+    this.pdfPath,
+    this.pdfUrl,
   });
 
   factory Violation.fromJson(Map<String, dynamic> json) {
@@ -43,8 +47,8 @@ class Violation {
         _asMap(json['location']) ?? _asMap(json['violation_location']);
     final rawViolationType =
         _asMap(json['violation_type']) ?? _asMap(json['violationType']);
-    final rawOwnerSnapshot =
-        _normalizeSnapshot(json['owner_snapshot']) ?? _snapshotFromOwner(rawVehicle);
+    final rawOwnerSnapshot = _normalizeSnapshot(json['owner_snapshot']) ??
+        _snapshotFromOwner(rawVehicle);
     final rawVehicleSnapshot = _normalizeSnapshot(json['vehicle_snapshot']) ??
         _snapshotFromVehicle(rawVehicle);
 
@@ -65,6 +69,8 @@ class Violation {
       isSynthetic: _asBool(json['is_synthetic']),
       severityLevel: json['severity_level']?.toString(),
       status: json['status']?.toString(),
+      pdfPath: json['pdf_path']?.toString(),
+      pdfUrl: json['pdf_url']?.toString(),
     );
   }
 
@@ -189,7 +195,8 @@ class Violation {
     return snapshot.isEmpty ? null : snapshot;
   }
 
-  static Map<String, dynamic>? _snapshotFromOwner(Map<String, dynamic>? vehicle) {
+  static Map<String, dynamic>? _snapshotFromOwner(
+      Map<String, dynamic>? vehicle) {
     if (vehicle == null) return null;
 
     final nestedOwner = _asMap(vehicle['owner']);

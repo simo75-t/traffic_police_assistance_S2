@@ -3,6 +3,7 @@
 namespace App\Http\Resources\PoliceOfficer;
 
 use App\Http\Resources\ProfileResource;
+use App\Http\Services\PoliceOfficer\ViolationPdfService;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -11,6 +12,7 @@ class ViolationResource extends JsonResource
 {
     public function toArray(Request $request): array
 {
+    $pdfService = app(ViolationPdfService::class);
     $vehicleSnapshot = $this->vehicle_snapshot;
 
     if (is_string($vehicleSnapshot)) {
@@ -33,6 +35,8 @@ class ViolationResource extends JsonResource
         'is_synthetic' => (bool) $this->is_synthetic,
         'severity_level' => $this->severity_level,
         'status' => $this->status,
+        'pdf_path' => $this->pdf_path,
+        'pdf_url' => $pdfService->pdfUrl($this->pdf_path),
         'appeal'         => $this->appeal ? [
             'id'          => $this->appeal->id,
             'status'      => $this->appeal->status,

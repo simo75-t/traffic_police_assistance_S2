@@ -9,11 +9,16 @@ use App\Models\Violation;
 use App\Models\ViolationLocation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
- use Carbon\Carbon;
+use Carbon\Carbon;
 
 
 class ViolationService
 {
+    public function __construct(
+        private readonly ViolationPdfService $violationPdfService,
+    ) {
+    }
+
     private function normalizeCityName(?string $value): ?string
     {
         if ($value === null) {
@@ -58,6 +63,23 @@ class ViolationService
                 'owner_name' => $data['vehicle_owner'] ?? null,
             ]
         );
+
+        $vehicleChanged = false;
+        if (! empty($data['vehicle_owner']) && empty($vehicle->owner_name)) {
+            $vehicle->owner_name = $data['vehicle_owner'];
+            $vehicleChanged = true;
+        }
+        if (! empty($data['vehicle_model']) && empty($vehicle->model)) {
+            $vehicle->model = $data['vehicle_model'];
+            $vehicleChanged = true;
+        }
+        if (! empty($data['vehicle_color']) && empty($vehicle->color)) {
+            $vehicle->color = $data['vehicle_color'];
+            $vehicleChanged = true;
+        }
+        if ($vehicleChanged) {
+            $vehicle->save();
+        }
 
         $violationType = \App\Models\ViolationType::findOrFail($data['violation_type_id']);
 
@@ -138,11 +160,28 @@ class ViolationService
 
             'vehicle_snapshot'      => json_encode([
                 'plate_number' => $vehicle->plate_number,
-                'owner_name'   => $data['vehicle_owner'] ?? null,
+                'owner_name'   => $vehicle->owner_name,
+                'model'        => $vehicle->model,
+                'color'        => $vehicle->color,
+            ]),
+            'plate_snapshot'        => json_encode([
+                'plate_number' => $vehicle->plate_number,
+            ]),
+            'owner_snapshot'        => json_encode([
+                'owner_name' => $vehicle->owner_name,
             ]),
 
             'occurred_at'           => $occurredAt,
         ]);
+
+        $pdfPath = $this->violationPdfService->generateAndStore(
+            $violation,
+            (string) optional(Auth::user())->name
+        );
+
+        $violation->forceFill([
+            'pdf_path' => $pdfPath,
+        ])->save();
 
         return $violation;
     });

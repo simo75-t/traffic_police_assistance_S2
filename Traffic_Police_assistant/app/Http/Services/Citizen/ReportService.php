@@ -55,7 +55,7 @@ class ReportService
             ]);
         });
 
-        $this->dispatchService->expireStaleAssignments();
+        $this->dispatchService->retryPendingAssignments();
         $this->dispatchService->dispatchReport($report->load('reportLocation'));
 
         return $report->fresh([

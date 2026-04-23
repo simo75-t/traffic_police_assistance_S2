@@ -53,9 +53,12 @@ class NotificationService {
     await _localNotifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
-        if (payload == null || payload.isEmpty) return;
-        _handlePayload(jsonDecode(payload) as Map<String, dynamic>);
+        final payload = _decodePayload(response.payload);
+        if (payload == null) {
+          return;
+        }
+
+        _handlePayload(payload);
       },
     );
 
@@ -86,15 +89,14 @@ class NotificationService {
     if (!_firebaseAvailable) return;
 
     final authToken = await SecureStorage.readToken();
-    if (authToken == null || authToken.isEmpty) return;
+    if (!_hasText(authToken)) return;
 
     final fcmToken = await _messaging.getToken();
-    if (fcmToken == null || fcmToken.isEmpty) return;
+    if (!_hasText(fcmToken)) return;
 
     final savedToken = await SecureStorage.readFcmToken();
     if (savedToken != fcmToken) {
-      await ApiService.updateFcmToken(authToken, fcmToken);
-      await SecureStorage.saveFcmToken(fcmToken);
+      await _persistBackendToken(authToken!, fcmToken!);
     }
 
     if (_tokenRefreshRegistered) return;
@@ -102,10 +104,9 @@ class NotificationService {
 
     _messaging.onTokenRefresh.listen((newToken) async {
       final latestAuthToken = await SecureStorage.readToken();
-      if (latestAuthToken == null || latestAuthToken.isEmpty) return;
+      if (!_hasText(latestAuthToken) || !_hasText(newToken)) return;
 
-      await ApiService.updateFcmToken(latestAuthToken, newToken);
-      await SecureStorage.saveFcmToken(newToken);
+      await _persistBackendToken(latestAuthToken!, newToken);
     });
   }
 
@@ -138,6 +139,32 @@ class NotificationService {
     _handlePayload(message.data);
   }
 
+  static Future<void> _persistBackendToken(
+    String authToken,
+    String fcmToken,
+  ) async {
+    await ApiService.updateFcmToken(authToken, fcmToken);
+    await SecureStorage.saveFcmToken(fcmToken);
+  }
+
+  static Map<String, dynamic>? _decodePayload(String? payload) {
+    if (!_hasText(payload)) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(payload!);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   static void _handlePayload(Map<String, dynamic> payload) {
     final highlightId =
         int.tryParse(payload['assignment_id']?.toString() ?? '') ??
@@ -147,5 +174,9 @@ class NotificationService {
       '/dispatch-assignments',
       arguments: highlightId,
     );
+  }
+
+  static bool _hasText(String? value) {
+    return value != null && value.isNotEmpty;
   }
 }

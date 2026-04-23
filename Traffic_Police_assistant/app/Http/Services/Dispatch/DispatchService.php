@@ -186,9 +186,14 @@ public function startAssignment(
         return $completedAssignment;
     }
 
-    public function expireStaleAssignments(): void
+    public function retryPendingAssignments(): void
     {
         $this->dispatchPendingReports();
+    }
+
+    public function expireStaleAssignments(): void
+    {
+        $this->retryPendingAssignments();
     }
 
     public function dispatchPendingReports(int $limit = 50): int

@@ -6,12 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Notifications\Notifiable;
-use Laravel\Passport\HasApiTokens;
 
 class ViolationLocation extends Model
 {
-     use  HasFactory, Notifiable, HasApiTokens;
+     use HasFactory;
 
      public $timestamps = true;
 
@@ -34,7 +32,7 @@ class ViolationLocation extends Model
 
      public function cityRecord(): BelongsTo
      {
-          return $this->belongsTo(City::class);
+          return $this->belongsTo(City::class, 'city_id');
      }
 
      /**

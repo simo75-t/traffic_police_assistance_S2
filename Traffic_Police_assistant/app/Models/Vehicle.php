@@ -5,20 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Notifications\Notifiable;
-use Laravel\Passport\HasApiTokens;
 
 class Vehicle extends Model
 {
-        use  HasFactory, Notifiable , HasApiTokens  ;
+    use HasFactory;
 
-        protected $fillable = [ 'plate_number' , 'owner_name' , 'model' , 'color'];
+    protected $fillable = ['plate_number', 'owner_name', 'model', 'color'];
 
-
-public function violations(): HasMany
-{
-    return $this->hasMany(Violation::class);
-}
-
-
+    public function violations(): HasMany
+    {
+        return $this->hasMany(Violation::class);
+    }
 }

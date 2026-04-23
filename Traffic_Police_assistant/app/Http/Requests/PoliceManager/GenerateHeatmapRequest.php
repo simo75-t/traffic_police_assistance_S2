@@ -23,6 +23,7 @@ class GenerateHeatmapRequest extends FormRequest
             'grid_size_meters' => ['nullable', 'integer', 'min:50', 'max:2000'],
             'include_ranking' => ['nullable', 'boolean'],
             'include_trend' => ['nullable', 'boolean'],
+            'include_synthetic' => ['nullable', 'boolean'],
             'comparison_mode' => ['nullable', 'string', Rule::in(['', 'week_over_week', 'month_over_month'])],
         ];
     }

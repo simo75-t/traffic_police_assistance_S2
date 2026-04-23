@@ -65,16 +65,24 @@ class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
     setState(() => _pdfLoading = true);
 
     try {
-      final file = await ViolationPdfService.ensurePdf(
-        widget.violation,
-        force: true,
-      );
+      final pdfUrl = widget.violation.pdfUrl;
+      String? filePath;
+
+      if (pdfUrl == null || pdfUrl.trim().isEmpty) {
+        final file = await ViolationPdfService.ensurePdf(
+          widget.violation,
+          force: true,
+        );
+        filePath = file.path;
+      }
+
       if (!mounted) return;
 
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ViolationPdfPreviewPage(
-            filePath: file.path,
+            filePath: filePath,
+            pdfUrl: pdfUrl,
             violationId: widget.violation.id,
           ),
         ),
@@ -94,7 +102,6 @@ class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final violation = widget.violation;
-    final snap = violation.vehicleSnapshot;
     final plate = violation.plateNumber ?? "No Plate";
 
     return Scaffold(

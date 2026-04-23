@@ -158,11 +158,13 @@ class _LoginPageState extends State<LoginPage> {
                               prefixIcon: Icon(Icons.badge),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty)
+                              if (value == null || value.isEmpty) {
                                 return 'Enter your email';
+                              }
                               final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                              if (!emailReg.hasMatch(value))
+                              if (!emailReg.hasMatch(value)) {
                                 return 'Enter a valid email';
+                              }
                               return null;
                             },
                           ),
@@ -175,10 +177,12 @@ class _LoginPageState extends State<LoginPage> {
                               prefixIcon: Icon(Icons.lock_outline),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty)
+                              if (value == null || value.isEmpty) {
                                 return 'Enter your password';
-                              if (value.length < 8)
+                              }
+                              if (value.length < 8) {
                                 return 'Password must be at least 8 characters';
+                              }
                               return null;
                             },
                           ),

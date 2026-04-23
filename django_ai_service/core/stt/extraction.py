@@ -135,20 +135,25 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
         city = "دمشق" if city_fixed.strip().lower() in ("ريف دمشق", "ريفدمشق") else city_fixed
     if vio_fixed:
         violation = norm(vio_fixed)
-    if not desc:
-        parts = []
-        if plate:
-            parts.append(f"plate {plate}")
-        if owner:
-            parts.append(f"owner {owner}")
-        if city:
-            parts.append(f"city {city}")
-        if street:
-            parts.append(f"street {street}")
-        if landmark:
-            parts.append(f"landmark {landmark}")
-        if violation:
-            parts.append(f"violation {violation}")
+    parts = []
+    if plate:
+        parts.append(f"plate {plate}")
+    if owner:
+        parts.append(f"owner {owner}")
+    if city:
+        parts.append(f"city {city}")
+    if street:
+        parts.append(f"street {street}")
+    if landmark:
+        parts.append(f"landmark {landmark}")
+    if violation:
+        parts.append(f"violation {violation}")
+    if desc:
+        lower_desc = desc.lower()
+        missing_parts = [part for part in parts if part.lower() not in lower_desc]
+        if missing_parts:
+            desc = f"{desc} | {' | '.join(missing_parts)}"
+    else:
         desc = " | ".join(parts) if parts else norm(stt_text)
     return {
         "vehicle_plate": plate or "",

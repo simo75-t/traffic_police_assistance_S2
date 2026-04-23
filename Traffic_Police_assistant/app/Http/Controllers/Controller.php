@@ -9,11 +9,11 @@ use Illuminate\Foundation\Validation\ValidatesRequests;
 abstract class Controller{
     use AuthorizesRequests, DispatchesJobs, ValidatesRequests;
 
-public function success($data , $massage= "Success" , $code = 200) {
+public function success($data , $message= "Success" , $code = 200) {
 return response()->json([
     "status_code" => $code , 
-    "message" => $massage ,
-    "massage" => $massage ,
+    "message" => $message ,
+    "massage" => $message ,
     "data" => $data ,
 ] , $code);
 }}

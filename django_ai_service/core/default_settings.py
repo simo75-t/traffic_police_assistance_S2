@@ -1,3 +1,7 @@
+SECRET_KEY = "change-me"
+DEBUG = False
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+
 RABBITMQ_HOST = "127.0.0.1"
 RABBITMQ_PORT = 5672
 RABBITMQ_USER = "admin"
@@ -13,15 +17,15 @@ AI_RMQ_OCR_ROUTING_KEY = "job.ocr.create"
 AI_RMQ_HEATMAP_QUEUE = "ai.heatmap.jobs"
 AI_RMQ_HEATMAP_ROUTING_KEY = "analytics.generate_heatmap"
 
-LARAVEL_BASE_URL = "http://172.20.10.9:8000"
+LARAVEL_BASE_URL = "http://172.20.10.4:8000"
 LARAVEL_API_PREFIX = "/api"
-LARAVEL_VIOLATIONS_API = "http://172.20.10.9:8000/api/ai_violations"
+LARAVEL_VIOLATIONS_API = "http://172.20.10.4:8000/api/ai_violations"
 LARAVEL_API_TIMEOUT = 30
 
 WHISPER_MODEL_NAME = "medium"
 WHISPER_LANGUAGE = "ar"
 
-LMSTUDIO_BASE_URL = "http://172.20.10.9:1234"
+LMSTUDIO_BASE_URL = "http://172.20.10.4:1234"
 LMSTUDIO_MODEL = "mistralai/mistral-7b-instruct-v0.3"
 LMSTUDIO_TIMEOUT = 120
 

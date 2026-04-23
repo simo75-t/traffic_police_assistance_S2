@@ -66,7 +66,7 @@ class DispatchController extends Controller
 
     public function myAssignments(Request $request): JsonResponse
     {
-        $this->dispatchService->expireStaleAssignments();
+        $this->dispatchService->retryPendingAssignments();
 
         $assignments = ReportAssignment::query()
             ->with(['citizenReport.reportLocation'])

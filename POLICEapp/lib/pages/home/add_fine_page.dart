@@ -266,7 +266,9 @@ class _AddViolationPageState extends State<AddViolationPage> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       if (!_isLikelyInSyria(position.latitude, position.longitude)) {
@@ -935,7 +937,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white12),
                 ),
@@ -1069,7 +1071,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white12),
                 ),
@@ -1105,15 +1107,17 @@ class _AddViolationPageState extends State<AddViolationPage> {
                         child: Text(
                           'Lat: ${_latitude!.toStringAsFixed(6)}, Lng: ${_longitude!.toStringAsFixed(6)}',
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 12),
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     if (_locationError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
                         child: Text(
                           'Auto-detect is unavailable on this emulator right now. You can type the city, street, and landmark manually.',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: Colors.orangeAccent, fontSize: 12),
                         ),
                       ),
@@ -1186,13 +1190,13 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 ),
                 const SizedBox(height: 16),
               ] else ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'City list is not loaded from the server yet. Type the city name manually below.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.orangeAccent,
                         fontSize: 12,
                       ),
