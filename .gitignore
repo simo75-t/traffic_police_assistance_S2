@@ -31,3 +31,6 @@ public/build/
 # Ignore workspace plan file
 SYSTEM_LEARNING_AND_TEST_PLAN.txt
 
+# Ignore local duplicate Laravel workspace
+Traffic_Police_assistant/
+
