@@ -211,7 +211,7 @@ class _ViolationsSearchServerPageState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final drawer = const QuickNavigationDrawer();
+    const drawer = QuickNavigationDrawer();
 
     return Directionality(
       textDirection: l10n.textDirection,

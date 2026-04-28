@@ -43,17 +43,19 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
 
+    final l10n = AppLocalizations.of(context);
     final email = emailController.text.trim();
     final password = passwordController.text;
 
     try {
       final res = await ApiService.login(email, password);
+      if (!mounted) return;
 
       final token = ApiService.extractLoginToken(res);
       final tokenType = ApiService.extractLoginTokenType(res);
 
       if (token == null || token.isEmpty) {
-        _showError(AppLocalizations.of(context).loginErrorNoToken);
+        _showError(l10n.loginErrorNoToken);
         return;
       }
 
@@ -75,7 +77,9 @@ class _LoginPageState extends State<LoginPage> {
         MaterialPageRoute(builder: (_) => const HomePage()),
       );
     } catch (e) {
-      _showError(AppLocalizations.of(context).loginErrorGeneric('$e'));
+      if (mounted) {
+        _showError(l10n.loginErrorGeneric('$e'));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

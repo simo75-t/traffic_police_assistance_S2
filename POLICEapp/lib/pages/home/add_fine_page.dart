@@ -118,53 +118,43 @@ class _AddViolationPageState extends State<AddViolationPage> {
     }
 
     try {
-      final c = await ApiService.getCities(token);
-      final t = await ApiService.getViolationTypes(token);
+      final dynamic cRaw = await ApiService.getCities(token);
+      final dynamic tRaw = await ApiService.getViolationTypes(token);
       if (!mounted) return;
 
-      final normalizedCities = _normalizeLookup(c);
-      final normalizedViolationTypes = _normalizeLookup(t);
-      final nextCityId = normalizedCities.any(
-        (item) => item['id']?.toString() == selectedCityId,
-      )
-          ? selectedCityId
-          : null;
-      final nextViolationTypeId = normalizedViolationTypes.any(
-        (item) => item['id']?.toString() == selectedViolationTypeId,
-      )
-          ? selectedViolationTypeId
-          : null;
+      final c = cRaw is Map ? Map<String, dynamic>.from(cRaw)['data'] : cRaw;
+      final t = tRaw is Map ? Map<String, dynamic>.from(tRaw)['data'] : tRaw;
+      final normalizedCities = _normalizeLookup(c ?? []);
+      final normalizedViolationTypes = _normalizeLookup(t ?? []);
+      final safeCities = normalizedCities.isNotEmpty
+          ? normalizedCities
+          : _normalizeLookup(ApiService.fallbackCities());
+      final safeViolationTypes = normalizedViolationTypes.isNotEmpty
+          ? normalizedViolationTypes
+          : _normalizeLookup(ApiService.fallbackViolationTypes());
 
       setState(() {
-        cities = normalizedCities;
-        violationTypes = normalizedViolationTypes;
+        cities = safeCities;
+        violationTypes = safeViolationTypes;
 
         // ✅ لا تختاري أول عنصر تلقائيًا (هذا كان سبب أن dropdown يطلع غلط)
         // selectedCityId = cities.isNotEmpty ? cities[0]['id'].toString() : null;
         // selectedViolationTypeId = violationTypes.isNotEmpty ? violationTypes[0]['id'].toString() : null;
 
         // لو بدك: خليهم null دائمًا حتى يجي STT أو المستخدم يختار
-        selectedCityId = nextCityId;
-        selectedViolationTypeId = nextViolationTypeId;
+        selectedCityId = null;
+        selectedViolationTypeId = null;
         _lookupsLoading = false;
-        _lookupsError = normalizedCities.isEmpty || normalizedViolationTypes.isEmpty
-            ? l10n.tr('addFine.lookupsError', params: {
-                'error': normalizedCities.isEmpty && normalizedViolationTypes.isEmpty
-                    ? l10n.tr('addFine.cityListUnavailable')
-                    : normalizedViolationTypes.isEmpty
-                        ? l10n.tr('addFine.violationTypeListUnavailable')
-                        : l10n.tr('addFine.cityListUnavailable'),
-              })
-            : null;
+        _lookupsError = null;
       });
 
       debugPrint(
-        'AddViolationPage: loaded ${normalizedViolationTypes.length} violation types',
+        'AddViolationPage: loaded ${violationTypes.length} violation types',
       );
       debugPrint(
-        'AddViolationPage: loaded ${normalizedCities.length} cities',
+        'AddViolationPage: loaded ${cities.length} cities',
       );
-      if (normalizedViolationTypes.isEmpty && mounted) {
+      if (violationTypes.isEmpty && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.tr('addFine.violationTypeListUnavailable')),
@@ -176,14 +166,20 @@ class _AddViolationPageState extends State<AddViolationPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        cities = _normalizeLookup(ApiService.fallbackCities());
+        violationTypes = _normalizeLookup(ApiService.fallbackViolationTypes());
+        selectedCityId = null;
+        selectedViolationTypeId = null;
         _lookupsLoading = false;
-        _lookupsError = l10n.tr(
-          'addFine.lookupsError',
-          params: {'error': '$e'},
-        );
+        _lookupsError = null;
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(_lookupsError!)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.tr('addFine.lookupsError', params: {'error': '$e'}),
+          ),
+        ),
+      );
     }
   }
 
@@ -1345,7 +1341,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(
                           l10n.tr('addFine.autoDetectUnavailable'),
-                          style: TextStyle(
+                          style: const TextStyle(
                               color: PoliceTheme.warning, fontSize: 12),
                         ),
                       ),

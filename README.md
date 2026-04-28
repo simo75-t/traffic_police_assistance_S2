@@ -1,22 +1,21 @@
 # Traffic Police Assistance S2
 
-Integrated traffic violation management system with three connected parts:
+Integrated traffic management platform composed of three connected applications:
 
-- `Traffic_Police_assistant`: Laravel backend and web dashboard for admin, police manager, citizen reports, dispatch, violations, appeals, and PDF generation.
-- `django_ai_service`: Django AI service for OCR, STT, and heatmap processing through RabbitMQ workers.
-- `POLICEapp`: Flutter mobile app for police officers, including violation entry, OCR/STT flow, dispatch assignments, notifications, and PDF preview.
+- `Traffic_Police_assistant`: Laravel 12 backend, web dashboards, API, RabbitMQ publisher, and AI result consumer.
+- `django_ai_service`: Django-based AI workers for OCR, STT, heatmap analytics, and heatmap prediction.
+- `POLICEapp`: Flutter mobile app used by police officers for field operations.
 
-## Current Main Features
+## What The System Does Now
 
-- Officer login and profile management
-- Violation creation from the mobile app
-- Plate OCR request and result polling
-- Speech-to-text request and result polling
-- Violation PDF generation and preview
-- Dispatch assignment flow and officer live location updates
-- Citizen report intake from the backend
-- Heatmap generation for police manager analytics
-- Automated test suites in Laravel, Django, and Flutter
+- Police officers log in from the mobile app and manage their profile.
+- Officers create traffic violations manually or with OCR and STT assistance.
+- The app can generate and preview violation PDFs.
+- Police managers review violations, maps, heatmaps, and appeals from the web dashboard.
+- Citizen reports can be submitted from the public web flow and assigned to officers.
+- Officer live location and dispatch assignments are supported.
+- Heatmap analytics can be generated from violation data.
+- AI-based heatmap prediction requests can be generated and polled by request ID.
 
 ## Repository Layout
 
@@ -29,40 +28,80 @@ Integrated traffic violation management system with three connected parts:
 `-- README.md
 ```
 
+## High-Level Architecture
+
+1. `POLICEapp` sends authenticated officer requests to the Laravel API.
+2. Laravel stores core operational data in MySQL and exposes admin, police manager, and citizen web flows.
+3. Laravel publishes OCR, STT, heatmap, and heatmap prediction jobs to RabbitMQ.
+4. Django workers consume those jobs, run AI or analytics processing, and publish results back to RabbitMQ.
+5. Laravel consumes the result messages through `php artisan ai:consume-results` and updates system state.
+6. Web and mobile clients poll or fetch the final results from Laravel.
+
+## Main Components
+
+### Laravel web and API
+
+The `Traffic_Police_assistant` application currently includes:
+
+- Admin authentication and dashboard
+- Police manager authentication and dashboard
+- Public citizen violation lookup and appeal submission
+- Mobile API for police officers
+- RabbitMQ-based AI job publishing
+- AI results consumer command
+- Violation PDF generation
+- Heatmap generation and heatmap prediction orchestration
+
+### Django AI service
+
+The `django_ai_service` application currently includes:
+
+- OCR worker
+- STT worker
+- Heatmap analytics worker
+- Heatmap prediction worker
+- RabbitMQ consumers and result publishing
+- MongoDB storage for OCR-related data
+
+### Flutter mobile app
+
+The `POLICEapp` application currently includes:
+
+- Officer login and profile screens
+- Violation creation and search
+- OCR and STT request flow
+- Dispatch assignments
+- Notification and officer presence services
+- Violation PDF preview
+- Arabic and English localization assets
+
 ## Required Software
 
-Install these before starting:
+Install these before running the full system:
 
 - Git
 - PHP 8.2+
 - Composer
 - Node.js 18+ and npm
-- Python 3.11+
+- Python 3.11+ recommended
 - Flutter SDK
 - MySQL or MariaDB
 - MongoDB
 - RabbitMQ
 
-Optional but expected for full AI behavior:
+Needed for the current AI flow:
 
-- Ollama for OCR model inference
-- LM Studio for STT text structuring
+- Ollama for OCR inference
+- LM Studio for STT structuring
+- A configured LLM provider for heatmap prediction if you want prediction generation to work
 
-## Architecture Summary
-
-1. `POLICEapp` sends officer actions to Laravel API endpoints.
-2. Laravel stores core data in MySQL and publishes OCR, STT, and heatmap jobs to RabbitMQ.
-3. Django workers consume those jobs, process AI tasks, and publish results back to RabbitMQ.
-4. Laravel consumes AI results and updates business data.
-5. Web and mobile clients read the updated data from Laravel.
-
-## Environment Setup
-
-Create local environment files before running the system.
+## Environment Notes
 
 ### Laravel environment
 
-Inside `Traffic_Police_assistant`, create `.env` from `.env.example` and configure at least:
+The Laravel folder currently contains `.env` but does not include a tracked `.env.example` in this repository snapshot. For a fresh machine, create `Traffic_Police_assistant/.env` manually or copy it from a trusted local source.
+
+Important values used by the current codebase include:
 
 ```env
 APP_NAME="Traffic Police Assistance"
@@ -88,21 +127,23 @@ AI_RMQ_EXCHANGE=ai.exchange
 AI_RMQ_OCR_QUEUE=ai.ocr.jobs
 AI_RMQ_STT_QUEUE=ai.stt.jobs
 AI_RMQ_HEATMAP_QUEUE=ai.heatmap.jobs
+AI_RMQ_HEATMAP_PREDICTION_QUEUE=ai.heatmap.prediction.jobs
 AI_RMQ_RESULTS_QUEUE=ai.results
+
 AI_RMQ_OCR_ROUTING_KEY=job.ocr.create
 AI_RMQ_STT_ROUTING_KEY=job.stt.create
 AI_RMQ_HEATMAP_ROUTING_KEY=analytics.generate_heatmap
+AI_RMQ_HEATMAP_PREDICTION_ROUTING_KEY=heatmap.prediction.request
 AI_RMQ_RESULTS_ROUTING_KEY=job.result
 ```
 
 ### Django environment
 
-Inside `django_ai_service`, create `.env` from `.env.example` and configure at least:
+The Django service includes `django_ai_service/.env.example`. Copy it to `.env` and replace the placeholder values with your real local configuration.
+
+Important variables include:
 
 ```env
-SECRET_KEY=change-me
-DEBUG=True
-
 RABBITMQ_HOST=127.0.0.1
 RABBITMQ_PORT=5672
 RABBITMQ_USER=your_rabbit_user
@@ -118,6 +159,9 @@ AI_RMQ_OCR_ROUTING_KEY=job.ocr.create
 AI_RMQ_HEATMAP_QUEUE=ai.heatmap.jobs
 AI_RMQ_HEATMAP_ROUTING_KEY=analytics.generate_heatmap
 
+AI_RMQ_HEATMAP_PREDICTION_QUEUE=ai.heatmap.prediction.jobs
+AI_RMQ_HEATMAP_PREDICTION_ROUTING_KEY=heatmap.prediction.request
+
 LARAVEL_BASE_URL=http://127.0.0.1:8000
 LARAVEL_API_PREFIX=/api
 
@@ -130,21 +174,31 @@ OLLAMA_MODEL=qwen2.5vl:3b
 
 LMSTUDIO_BASE_URL=http://127.0.0.1:1234
 LMSTUDIO_MODEL=mistralai/mistral-7b-instruct-v0.3
+
+HEATMAP_PREDICTION_LLM_PROVIDER=your_provider
 ```
+
+Do not keep real secrets or API keys in committed example files.
 
 ### Flutter environment
 
-Update the API base URL in the Flutter app to point to your Laravel server. Check the files under `POLICEapp/lib/`, especially configuration and API service files, before running on a real device.
+The Flutter app does not currently read its backend URL from environment variables. It uses a hard-coded base URL in `POLICEapp/lib/config.dart`.
 
-If you run the app on a physical phone, `127.0.0.1` will not point to your PC. Use your machine's LAN IP instead.
+Current code:
 
-## Full System Startup
+```dart
+static const String baseUrl = "http://192.168.0.119:8000/api";
+```
+
+If you run on another machine, emulator, or physical device, update that value before testing.
+
+## Setup And Run
 
 Use PowerShell from the repository root unless noted otherwise.
 
-### 1. Start infrastructure services
+### 1. Start infrastructure
 
-Make sure these are running:
+Make sure these services are running first:
 
 - MySQL or MariaDB
 - MongoDB
@@ -152,12 +206,11 @@ Make sure these are running:
 - Ollama
 - LM Studio
 
-### 2. Setup and run Laravel
+### 2. Setup Laravel
 
 ```powershell
 cd Traffic_Police_assistant
 composer install
-copy .env.example .env
 php artisan key:generate
 php artisan migrate
 php artisan db:seed
@@ -167,54 +220,58 @@ npm install
 Run the backend:
 
 ```powershell
+cd Traffic_Police_assistant
 php artisan serve
 ```
 
-In a second terminal for Laravel, start the AI result consumer:
+Run the AI result consumer in another terminal:
 
 ```powershell
 cd Traffic_Police_assistant
 php artisan ai:consume-results
 ```
 
-Optional frontend assets during development:
+Run frontend assets during development if you need the web UI:
 
 ```powershell
 cd Traffic_Police_assistant
 npm run dev
 ```
 
-### 3. Setup and run Django AI service
+### 3. Setup Django AI service
+
+Create or use the local virtual environment and install dependencies:
 
 ```powershell
 cd django_ai_service
 python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-python manage.py migrate
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe manage.py migrate
 ```
 
-Start the workers in separate terminals:
+Start each worker in its own terminal:
 
 ```powershell
 cd django_ai_service
-.\.venv\Scripts\activate
-python manage.py run_ocr_worker
-```
-
-```powershell
-cd django_ai_service
-.\.venv\Scripts\activate
-python manage.py run_stt_worker
+.\.venv\Scripts\python.exe manage.py run_ocr_worker
 ```
 
 ```powershell
 cd django_ai_service
-.\.venv\Scripts\activate
-python manage.py run_heatmap_worker
+.\.venv\Scripts\python.exe manage.py run_stt_worker
 ```
 
-### 4. Setup and run Flutter app
+```powershell
+cd django_ai_service
+.\.venv\Scripts\python.exe manage.py run_heatmap_worker
+```
+
+```powershell
+cd django_ai_service
+.\.venv\Scripts\python.exe manage.py run_heatmap_prediction_worker
+```
+
+### 4. Setup Flutter app
 
 ```powershell
 cd POLICEapp
@@ -222,11 +279,9 @@ flutter pub get
 flutter run
 ```
 
-## Recommended Run Order
+## Recommended Startup Order
 
-For a complete local session, start things in this order:
-
-1. MySQL / MariaDB
+1. MySQL or MariaDB
 2. MongoDB
 3. RabbitMQ
 4. Ollama
@@ -236,13 +291,15 @@ For a complete local session, start things in this order:
 8. Django OCR worker
 9. Django STT worker
 10. Django heatmap worker
-11. Flutter app
+11. Django heatmap prediction worker
+12. Flutter app
 
-## Main API Flows
+## Main Laravel API Endpoints
 
-Important Laravel API endpoints currently exposed from `Traffic_Police_assistant/routes/api.php`:
+Current API routes defined in `Traffic_Police_assistant/routes/api.php` include:
 
 - `POST /api/login`
+- `POST /api/citizen/reports`
 - `GET /api/profile`
 - `POST /api/profile/update`
 - `POST /api/fcm-token`
@@ -251,6 +308,7 @@ Important Laravel API endpoints currently exposed from `Traffic_Police_assistant
 - `GET /api/search-violations`
 - `GET /api/cities`
 - `GET /api/violation-types`
+- `POST /api/logout`
 - `POST /api/ocr/plate`
 - `GET /api/ocr/result/{job_id}`
 - `POST /api/stt/transcribe`
@@ -259,10 +317,18 @@ Important Laravel API endpoints currently exposed from `Traffic_Police_assistant
 - `GET /api/officers/assignments`
 - `POST /api/officers/assignments/{assignment}/start`
 - `POST /api/officers/assignments/{assignment}/complete`
-- `POST /api/citizen/reports`
-- `GET /api/ai_violations`
 - `GET /api/ai_cities`
 - `GET /api/ai_violation-types`
+- `GET /api/ai_violations`
+- `GET /api/heatmap-predictions/{request_id}`
+
+## Main Web Routes
+
+The Laravel web app also exposes:
+
+- Public citizen violation lookup and appeal submission
+- Admin login and management pages under `/admin`
+- Police manager login, dashboard, violations, maps, heatmaps, predictions, and appeals under `/policemanager`
 
 ## Testing
 
@@ -277,16 +343,14 @@ php artisan test
 
 ```powershell
 cd django_ai_service
-.\.venv\Scripts\activate
-python manage.py test core --settings=config.test_settings -v 2
+.\.venv\Scripts\python.exe manage.py test core --settings=config.test_settings -v 2
 ```
 
-Alternative helper script:
+Alternative helper:
 
 ```powershell
 cd django_ai_service
-.\.venv\Scripts\activate
-python run_tests.py
+.\.venv\Scripts\python.exe run_tests.py
 ```
 
 ### Flutter tests
@@ -300,16 +364,16 @@ Additional testing notes are documented in `CHAPTER_8_TESTING.md`.
 
 ## Common Local Issues
 
-- If OCR or STT requests stay pending, verify that RabbitMQ is running and both Laravel and Django use the same exchange, queue, and routing key values.
-- If the mobile app cannot connect on a real device, replace localhost with your machine IP in both Laravel and Flutter configuration.
-- If heatmap generation fails, verify that Laravel is reachable from Django through `LARAVEL_BASE_URL`.
-- If OCR fails, verify that Ollama is running and the configured model is installed.
-- If STT structuring fails, verify that LM Studio is running and accessible.
-- If database tables are missing, rerun `php artisan migrate` and `python manage.py migrate`.
+- If OCR or STT jobs stay pending, verify that Laravel and Django use the same RabbitMQ exchange, queues, and routing keys.
+- If heatmap prediction requests stay pending, make sure `run_heatmap_prediction_worker` is running in addition to the standard heatmap worker.
+- If the mobile app cannot connect, update `POLICEapp/lib/config.dart` to a reachable LAN IP or emulator-safe address.
+- If AI results never arrive in Laravel, make sure `php artisan ai:consume-results` is running.
+- If OCR fails, verify that Ollama is reachable and the configured model is installed.
+- If STT extraction fails, verify that LM Studio is reachable.
+- If database tables are missing, rerun Laravel and Django migrations.
 
 ## Notes
 
-- The correct backend directory name is `Traffic_Police_assistant`.
-- Some older documentation may still mention `Triffic_Police_assistant`; that is outdated.
-- Do not commit local `.env`, virtual environments, or generated temporary files.
-
+- The backend folder name is `Traffic_Police_assistant`.
+- There is also a nested Git repository inside `POLICEapp`; treat it carefully if you are committing from the repository root.
+- Do not commit local `.env` files, virtual environments, caches, or temporary generated files unless intentionally needed.

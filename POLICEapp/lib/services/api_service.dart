@@ -258,6 +258,14 @@ class ApiService {
     );
   }
 
+  static List<Map<String, dynamic>> fallbackCities() {
+    return List<Map<String, dynamic>>.from(_offlineCities);
+  }
+
+  static List<Map<String, dynamic>> fallbackViolationTypes() {
+    return List<Map<String, dynamic>>.from(_offlineViolationTypes);
+  }
+
   static Future<List<dynamic>> getAiCities(String token) async {
     return _getLookupList(
       token: token,

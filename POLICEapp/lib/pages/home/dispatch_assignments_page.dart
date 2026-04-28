@@ -266,7 +266,6 @@ class _DispatchAssignmentsPageState extends State<DispatchAssignmentsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isRtl = l10n.isRtl;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.dispatchPageTitle)),

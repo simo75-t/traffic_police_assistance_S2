@@ -146,7 +146,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
-    final drawer = const QuickNavigationDrawer();
+    const drawer = QuickNavigationDrawer();
 
     return Scaffold(
       drawer: l10n.isRtl ? null : drawer,
