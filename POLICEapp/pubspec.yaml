@@ -11,7 +11,10 @@ dependencies:
   flutter:
     sdk: flutter
 
-  intl: ^0.18.0
+  flutter_localizations:
+    sdk: flutter
+
+  intl: ^0.19.0
   http: ^0.13.6
   flutter_secure_storage: ^9.2.4
   cupertino_icons: ^1.0.8
@@ -20,9 +23,7 @@ dependencies:
   firebase_messaging: ^15.2.5
   flutter_local_notifications: ^17.2.4
 
-
   record: ^6.1.2
-
 
   path_provider: ^2.1.4
   path: ^1.9.0
@@ -41,7 +42,10 @@ dev_dependencies:
   flutter_lints: ^4.0.0
 
 flutter:
+  generate: true
   uses-material-design: true
+
   assets:
+    - assets/l10n/
     - assets/fonts/arial.ttf
     - assets/fonts/arialbd.ttf

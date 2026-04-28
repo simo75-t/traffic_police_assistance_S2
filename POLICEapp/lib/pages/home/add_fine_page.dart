@@ -9,10 +9,15 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/police_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/violation.dart';
 import '../../services/api_service.dart';
 import '../../services/secure_storage.dart';
 import '../../services/violation_pdf_service.dart';
+import '../../widgets/app_button.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/section_header.dart';
 
 class AddViolationPage extends StatefulWidget {
   const AddViolationPage({super.key});
@@ -95,11 +100,13 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
   // ================= Lookups =================
   Future<void> _loadLookups() async {
+    final l10n = AppLocalizations.of(context);
     final token = await SecureStorage.readToken();
     if (token == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please login first.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.tr('addFine.loginRequired'))),
+      );
       return;
     }
 
@@ -113,28 +120,67 @@ class _AddViolationPageState extends State<AddViolationPage> {
     try {
       final c = await ApiService.getCities(token);
       final t = await ApiService.getViolationTypes(token);
+      if (!mounted) return;
+
+      final normalizedCities = _normalizeLookup(c);
+      final normalizedViolationTypes = _normalizeLookup(t);
+      final nextCityId = normalizedCities.any(
+        (item) => item['id']?.toString() == selectedCityId,
+      )
+          ? selectedCityId
+          : null;
+      final nextViolationTypeId = normalizedViolationTypes.any(
+        (item) => item['id']?.toString() == selectedViolationTypeId,
+      )
+          ? selectedViolationTypeId
+          : null;
 
       setState(() {
-        cities = _normalizeLookup(c);
-        violationTypes = _normalizeLookup(t);
+        cities = normalizedCities;
+        violationTypes = normalizedViolationTypes;
 
         // ✅ لا تختاري أول عنصر تلقائيًا (هذا كان سبب أن dropdown يطلع غلط)
         // selectedCityId = cities.isNotEmpty ? cities[0]['id'].toString() : null;
         // selectedViolationTypeId = violationTypes.isNotEmpty ? violationTypes[0]['id'].toString() : null;
 
         // لو بدك: خليهم null دائمًا حتى يجي STT أو المستخدم يختار
-        selectedCityId = null;
-        selectedViolationTypeId = null;
+        selectedCityId = nextCityId;
+        selectedViolationTypeId = nextViolationTypeId;
         _lookupsLoading = false;
-        _lookupsError = null;
+        _lookupsError = normalizedCities.isEmpty || normalizedViolationTypes.isEmpty
+            ? l10n.tr('addFine.lookupsError', params: {
+                'error': normalizedCities.isEmpty && normalizedViolationTypes.isEmpty
+                    ? l10n.tr('addFine.cityListUnavailable')
+                    : normalizedViolationTypes.isEmpty
+                        ? l10n.tr('addFine.violationTypeListUnavailable')
+                        : l10n.tr('addFine.cityListUnavailable'),
+              })
+            : null;
       });
+
+      debugPrint(
+        'AddViolationPage: loaded ${normalizedViolationTypes.length} violation types',
+      );
+      debugPrint(
+        'AddViolationPage: loaded ${normalizedCities.length} cities',
+      );
+      if (normalizedViolationTypes.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.tr('addFine.violationTypeListUnavailable')),
+          ),
+        );
+      }
 
       unawaited(_detectCurrentLocation());
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _lookupsLoading = false;
-        _lookupsError = 'Error loading lookups: $e';
+        _lookupsError = l10n.tr(
+          'addFine.lookupsError',
+          params: {'error': '$e'},
+        );
       });
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(_lookupsError!)));
@@ -145,22 +191,9 @@ class _AddViolationPageState extends State<AddViolationPage> {
     final out = <Map<String, dynamic>>[];
 
     for (final item in raw) {
-      if (item is Map<String, dynamic>) {
-        final id = item['id'];
-        final name = item['name'] ?? item['title'] ?? id;
-        if (id != null) {
-          out.add({'id': id, 'name': name?.toString() ?? ''});
-        }
-        continue;
-      }
-
-      if (item is Map) {
-        final map = Map<String, dynamic>.from(item);
-        final id = map['id'];
-        final name = map['name'] ?? map['title'] ?? id;
-        if (id != null) {
-          out.add({'id': id, 'name': name?.toString() ?? ''});
-        }
+      final normalizedItem = _normalizeLookupItem(item);
+      if (normalizedItem != null) {
+        out.add(normalizedItem);
         continue;
       }
 
@@ -171,6 +204,43 @@ class _AddViolationPageState extends State<AddViolationPage> {
     }
 
     return out;
+  }
+
+  Map<String, dynamic>? _normalizeLookupItem(dynamic item) {
+    final map = item is Map<String, dynamic>
+        ? item
+        : item is Map
+            ? Map<String, dynamic>.from(item)
+            : null;
+    if (map == null) return null;
+
+    final id = map['id'] ?? map['value'] ?? map['code'];
+    if (id == null) return null;
+
+    final normalized = Map<String, dynamic>.from(map);
+    normalized['id'] = id;
+    normalized['name'] = _firstNonEmptyLookupValue([
+          map['name'],
+          map['title'],
+          map['label'],
+          map['display_name'],
+          map['violation_type_name'],
+          map['city_name'],
+          id,
+        ]) ??
+        id.toString();
+
+    return normalized;
+  }
+
+  String? _firstNonEmptyLookupValue(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty && text.toLowerCase() != 'null') {
+        return text;
+      }
+    }
+    return null;
   }
 
   int? _toIntOrNull(String? value) {
@@ -241,7 +311,29 @@ class _AddViolationPageState extends State<AddViolationPage> {
     return null;
   }
 
+  String? _matchViolationTypeIdFromName(String? violationTypeName) {
+    if (violationTypeName == null || violationTypeName.trim().isEmpty) {
+      return null;
+    }
+
+    final normalized = _normalizeLookupText(violationTypeName);
+    for (final item in violationTypes) {
+      final itemName = item['name']?.toString();
+      if (itemName == null || itemName.trim().isEmpty) continue;
+
+      final normalizedItem = _normalizeLookupText(itemName);
+      if (normalizedItem == normalized ||
+          normalizedItem.contains(normalized) ||
+          normalized.contains(normalizedItem)) {
+        return item['id']?.toString();
+      }
+    }
+
+    return null;
+  }
+
   Future<void> _detectCurrentLocation() async {
+    final l10n = AppLocalizations.of(context);
     if (_locationLoading) return;
 
     setState(() {
@@ -252,7 +344,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
     try {
       var serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location service is disabled');
+        throw Exception(l10n.tr('addFine.locationServiceDisabled'));
       }
 
       var permission = await Geolocator.checkPermission();
@@ -262,7 +354,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission denied');
+        throw Exception(l10n.tr('addFine.locationPermissionDenied'));
       }
 
       final position = await Geolocator.getCurrentPosition(
@@ -275,8 +367,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
         if (!mounted) return;
         setState(() {
           _locationLoading = false;
-          _locationError =
-              'Detected device location is outside Syria. Update emulator/device location, then retry.';
+          _locationError = l10n.tr('addFine.locationOutsideSyria');
         });
         return;
       }
@@ -425,6 +516,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
   // ================= OCR =================
   Future<void> _showImageSourceDialog() async {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -436,7 +528,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt),
-              title: const Text('Take photo'),
+              title: Text(l10n.tr('addFine.takePhoto')),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
@@ -444,7 +536,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from gallery'),
+              title: Text(l10n.tr('addFine.chooseFromGallery')),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);
@@ -457,6 +549,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    final l10n = AppLocalizations.of(context);
     final XFile? pickedFile = await _picker.pickImage(
       source: source,
       imageQuality: 90,
@@ -473,7 +566,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
     if (token == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please login first.')),
+        SnackBar(content: Text(l10n.tr('addFine.loginRequired'))),
       );
       setState(() => _ocrLoading = false);
       return;
@@ -497,7 +590,11 @@ class _AddViolationPageState extends State<AddViolationPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('OCR error: $e')),
+        SnackBar(
+          content: Text(
+            l10n.tr('addFine.ocrError', params: {'error': '$e'}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _ocrLoading = false);
@@ -516,16 +613,18 @@ class _AddViolationPageState extends State<AddViolationPage> {
   }
 
   Future<void> _startRecording() async {
+    final l10n = AppLocalizations.of(context);
     final hasPerm = await _recorder.hasPermission();
     if (!hasPerm) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Microphone permission denied')),
+        SnackBar(content: Text(l10n.tr('addFine.microphoneDenied'))),
       );
       return;
     }
 
     final dir = await getTemporaryDirectory();
+    if (!mounted) return;
     final filePath = p.join(
       dir.path,
       'stt_${DateTime.now().millisecondsSinceEpoch}.wav',
@@ -554,8 +653,10 @@ class _AddViolationPageState extends State<AddViolationPage> {
   }
 
   Future<void> _stopRecording() async {
+    final l10n = AppLocalizations.of(context);
     _sttTimer?.cancel();
     final path = await _recorder.stop();
+    if (!mounted) return;
 
     setState(() {
       _sttRecording = false;
@@ -565,7 +666,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
     if (path == null || path.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No recorded audio found')),
+        SnackBar(content: Text(l10n.tr('addFine.noRecordedAudio'))),
       );
       return;
     }
@@ -584,7 +685,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
     if (!exists || size < 2000) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recorded audio is empty / too small')),
+        SnackBar(content: Text(l10n.tr('addFine.audioTooSmall'))),
       );
       return;
     }
@@ -600,6 +701,8 @@ class _AddViolationPageState extends State<AddViolationPage> {
   // ================= STT (Upload + Poll) =================
 
   Future<void> _cancelStt() async {
+    final l10n = AppLocalizations.of(context);
+    final recordedPath = _recordedPath;
     // يوقف التسجيل لو شغال
     if (_sttRecording) {
       _sttTimer?.cancel();
@@ -619,24 +722,26 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
     // (اختياري) حذف ملف الصوت المسجل إن وجد
     try {
-      if (_recordedPath != null) {
-        final f = File(_recordedPath!);
+      if (recordedPath != null) {
+        final f = File(recordedPath);
         if (await f.exists()) await f.delete();
       }
     } catch (_) {}
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('STT cancelled')),
+      SnackBar(content: Text(l10n.tr('addFine.sttCancelled'))),
     );
   }
 
   Future<void> _sendAudioToServer(File audioFile) async {
+    final l10n = AppLocalizations.of(context);
     final token = await SecureStorage.readToken();
     if (token == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please login first.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.tr('addFine.loginRequired'))),
+      );
       return;
     }
 
@@ -647,43 +752,47 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
     try {
       final jobId = await ApiService.requestStt(token, audioFile);
+      if (!mounted || _sttCancelled) return;
 
       if (_sttCancelled) return; // ✅ لو انضغط Cancel بعد الرفع
 
       final sttResult = await ApiService.pollStt(token, jobId);
+      if (!mounted || _sttCancelled) return;
 
       if (_sttCancelled) return; // ✅ لو انضغط Cancel أثناء polling
 
-      final result = sttResult['result'];
+      final result = _extractSttResult(sttResult);
 
       // ✅ transcript parsing
-      String transcriptText = '';
-      if (result is Map) {
-        transcriptText =
-            (result['text'] ?? result['transcript'] ?? '').toString();
-      } else if (result is String) {
-        transcriptText = result;
-      }
+      final transcriptText = _extractTranscriptText(result);
 
       if (!mounted || _sttCancelled) return;
 
-      setState(() {
-        transcriptController.text = transcriptText;
-      });
+      transcriptController.text = transcriptText;
 
       // ✅ apply fields
-      if (result is Map && result['fields'] is Map) {
-        _applySttFields(Map<String, dynamic>.from(result['fields']));
+      if (result is Map) {
+        final fieldMap = _extractFieldMap(result['fields']) ??
+            _extractFieldMap(result['result']) ??
+            _extractFieldMap(result['data']);
+        if (fieldMap != null) {
+          _applySttFields(fieldMap);
+        }
       }
 
       if (!mounted || _sttCancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('STT success ✅')),
+        SnackBar(content: Text(l10n.tr('addFine.sttSuccess'))),
       );
     } catch (e) {
       if (!mounted || _sttCancelled) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('STT error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.tr('addFine.sttError', params: {'error': '$e'}),
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _sttLoading = false);
@@ -692,6 +801,46 @@ class _AddViolationPageState extends State<AddViolationPage> {
   }
 
   // ✅✅ أهم تعديل: تعبئة كل الحقول + تصفير dropdown إذا ما في ID
+  dynamic _extractSttResult(Map<String, dynamic> sttResult) {
+    final result = sttResult['result'];
+    if (result != null) {
+      return result;
+    }
+
+    final data = sttResult['data'];
+    if (data is Map && data['result'] != null) {
+      return data['result'];
+    }
+
+    return data ?? sttResult;
+  }
+
+  String _extractTranscriptText(dynamic result) {
+    if (result is String) {
+      return result.trim();
+    }
+
+    if (result is Map) {
+      debugPrint('AddViolationPage: STT result map keys=${result.keys.toList()}');
+      return _firstNonEmptyLookupValue([
+            result['text'],
+            result['transcript'],
+            result['message'],
+            result['result'] is String ? result['result'] : null,
+            result['data'] is String ? result['data'] : null,
+          ]) ??
+          '';
+    }
+
+    return '';
+  }
+
+  Map<String, dynamic>? _extractFieldMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
+  }
+
   void _applySttFields(Map<String, dynamic> fields) {
     String s(dynamic v) => (v ?? '').toString().trim();
 
@@ -707,6 +856,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
     final cityId = s(fields['city_id']);
     final cityName = s(fields['city_name']);
     final violationTypeId = s(fields['violation_type_id']);
+    final violationTypeName = s(fields['violation_type_name']);
 
     if (plate.isNotEmpty) plateController.text = plate.toUpperCase();
     if (owner.isNotEmpty) ownerController.text = owner;
@@ -719,20 +869,42 @@ class _AddViolationPageState extends State<AddViolationPage> {
     if (cityName.isNotEmpty) cityNameController.text = cityName;
 
     // ✅ City dropdown: if no id => null (لا default)
-    if (cityId.isNotEmpty) {
-      final ok = cities.any((c) => c['id'].toString() == cityId);
-      selectedCityId = ok ? cityId : null;
-    } else {
-      selectedCityId = null;
+    final resolvedCityId = cityId.isNotEmpty
+        ? cityId
+        : _matchCityIdFromName(cityName.isNotEmpty ? cityName : null);
+    if (resolvedCityId != null && resolvedCityId.isNotEmpty) {
+      final ok = cities.any((c) => c['id'].toString() == resolvedCityId);
+      if (ok) {
+        selectedCityId = resolvedCityId;
+      } else {
+        debugPrint('AddViolationPage: STT city id not found in lookup: $resolvedCityId');
+      }
+    } else if (cityName.isNotEmpty) {
+      debugPrint('AddViolationPage: STT city mapping failed for "$cityName"');
     }
 
     // ✅ Violation dropdown: if no id => null (لا default)
-    if (violationTypeId.isNotEmpty) {
-      final ok =
-          violationTypes.any((t) => t['id'].toString() == violationTypeId);
-      selectedViolationTypeId = ok ? violationTypeId : null;
-    } else {
-      selectedViolationTypeId = null;
+    final resolvedViolationTypeId = violationTypeId.isNotEmpty
+        ? violationTypeId
+        : _matchViolationTypeIdFromName(
+            violationTypeName.isNotEmpty ? violationTypeName : null,
+          );
+    if (resolvedViolationTypeId != null &&
+        resolvedViolationTypeId.isNotEmpty) {
+      final ok = violationTypes.any(
+        (t) => t['id'].toString() == resolvedViolationTypeId,
+      );
+      if (ok) {
+        selectedViolationTypeId = resolvedViolationTypeId;
+      } else {
+        debugPrint(
+          'AddViolationPage: STT violation type id not found in lookup: $resolvedViolationTypeId',
+        );
+      }
+    } else if (violationTypeName.isNotEmpty) {
+      debugPrint(
+        'AddViolationPage: STT violation type mapping failed for "$violationTypeName"',
+      );
     }
 
     if (mounted) setState(() {});
@@ -827,13 +999,15 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
   // ================= Submit =================
   Future<void> _submit() async {
+    final l10n = AppLocalizations.of(context);
     if (!_formKey.currentState!.validate()) return;
 
     final token = await SecureStorage.readToken();
     if (token == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Please login first.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.tr('addFine.loginRequired'))),
+      );
       return;
     }
 
@@ -888,20 +1062,28 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Violation created and PDF saved')),
+          SnackBar(content: Text(l10n.tr('addFine.createdSuccess'))),
         );
         Navigator.of(context).pop(true);
       } else {
-        final msg = res['message'] ?? 'Unknown error';
+        final msg = res['message'] ?? l10n.tr('addFine.unknownError');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $msg')),
+          SnackBar(
+            content: Text(
+              l10n.tr('addFine.errorPrefix', params: {'message': '$msg'}),
+            ),
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Request error: $e')),
+        SnackBar(
+          content: Text(
+            l10n.tr('addFine.requestError', params: {'error': '$e'}),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -911,67 +1093,84 @@ class _AddViolationPageState extends State<AddViolationPage> {
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isRtl = l10n.isRtl;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Register Violation')),
+      appBar: AppBar(title: Text(l10n.tr('addFine.pageTitle'))),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ElevatedButton.icon(
-                icon: const Icon(Icons.camera),
-                label: _ocrLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Add Car Image (OCR)'),
+              SectionHeader(
+                title: l10n.tr('addFine.sectionTitle'),
+                subtitle: l10n.tr('addFine.sectionSubtitle'),
+              ),
+              const SizedBox(height: 16),
+              AppButton(
+                label: l10n.tr('addFine.addImage'),
+                icon: Icons.camera_alt_outlined,
                 onPressed: _ocrLoading ? null : _showImageSourceDialog,
+                loading: _ocrLoading,
               ),
               const SizedBox(height: 12),
+              if (_selectedImage != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.file(
+                    _selectedImage!,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // ===== STT card =====
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white12),
-                ),
+              AppCard(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Voice input (STT)',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    SectionHeader(
+                      title: l10n.tr('addFine.sttTitle'),
+                      subtitle: l10n.tr('addFine.sttSubtitle'),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
-                          child: ElevatedButton.icon(
-                            icon: Icon(_sttRecording ? Icons.stop : Icons.mic),
-                            label: Text(
-                              _sttRecording
-                                  ? 'Stop (${_formatDuration(_recordDuration)})'
-                                  : 'Start Recording',
-                            ),
+                          child: AppButton(
+                            label: _sttRecording
+                                ? l10n.tr(
+                                    'addFine.sttStop',
+                                    params: {
+                                      'duration':
+                                          _formatDuration(_recordDuration),
+                                    },
+                                  )
+                                : l10n.tr('addFine.sttStart'),
+                            icon: _sttRecording
+                                ? Icons.stop_circle_outlined
+                                : Icons.mic_none_outlined,
                             onPressed: _sttLoading ? null : _toggleRecording,
                           ),
                         ),
                         const SizedBox(width: 12),
 
                         // ✅ Cancel button
-                        IconButton(
+                        AppButton(
                           onPressed: (_sttRecording || _sttLoading)
                               ? _cancelStt
                               : null,
-                          icon: const Icon(Icons.close),
-                          tooltip: 'Cancel',
+                          label: l10n.tr('addFine.sttCancel'),
+                          icon: Icons.close,
+                          variant: AppButtonVariant.secondary,
+                          expanded: false,
                         ),
 
                         if (_sttLoading)
@@ -986,60 +1185,80 @@ class _AddViolationPageState extends State<AddViolationPage> {
                     TextFormField(
                       controller: transcriptController,
                       maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Transcript (from STT)',
-                        prefixIcon: Icon(Icons.text_snippet_outlined),
+                      textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                      textDirection: l10n.textDirection,
+                      decoration: InputDecoration(
+                        labelText: l10n.tr('addFine.transcript'),
+                        prefixIcon: const Icon(Icons.text_snippet_outlined),
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Tip: After STT, fields may auto-fill if the backend returns structured data.',
-                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                    Text(
+                      l10n.tr('addFine.sttTip'),
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
                     ),
                   ],
                 ),
               ),
 
               const SizedBox(height: 18),
+              SectionHeader(
+                title: l10n.tr('addFine.vehicleTitle'),
+                subtitle: l10n.tr('addFine.vehicleSubtitle'),
+              ),
+              const SizedBox(height: 12),
 
               TextFormField(
                 controller: plateController,
                 textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Plate Number',
-                  prefixIcon: Icon(Icons.directions_car),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.plateNumber'),
+                  prefixIcon: const Icon(Icons.directions_car),
                 ),
                 validator: (v) =>
-                    v == null || v.isEmpty ? 'Enter plate number' : null,
+                    v == null || v.isEmpty ? l10n.tr('addFine.enterPlate') : null,
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: ownerController,
-                decoration: const InputDecoration(
-                  labelText: 'Owner Name (optional)',
-                  prefixIcon: Icon(Icons.person),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.ownerOptional'),
+                  prefixIcon: const Icon(Icons.person),
                 ),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: modelController,
-                decoration: const InputDecoration(
-                  labelText: 'Car Model (optional)',
-                  prefixIcon: Icon(Icons.car_rental),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.modelOptional'),
+                  prefixIcon: const Icon(Icons.car_rental),
                 ),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: colorController,
-                decoration: const InputDecoration(
-                  labelText: 'Car Color (optional)',
-                  prefixIcon: Icon(Icons.palette),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.colorOptional'),
+                  prefixIcon: const Icon(Icons.palette),
                 ),
               ),
               const SizedBox(height: 16),
+              SectionHeader(
+                title: l10n.tr('addFine.locationTitle'),
+                subtitle: l10n.tr('addFine.locationSubtitle'),
+              ),
+              const SizedBox(height: 12),
 
               if (_lookupsLoading)
                 const Padding(
@@ -1055,12 +1274,12 @@ class _AddViolationPageState extends State<AddViolationPage> {
                       Expanded(
                         child: Text(
                           _lookupsError!,
-                          style: const TextStyle(color: Colors.redAccent),
+                          style: const TextStyle(color: PoliceTheme.error),
                         ),
                       ),
                       TextButton(
                         onPressed: _loadLookups,
-                        child: const Text('Retry'),
+                        child: Text(l10n.tr('addFine.retry')),
                       ),
                     ],
                   ),
@@ -1071,33 +1290,42 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white12),
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.my_location, color: Colors.white70),
+                        const Icon(
+                          Icons.my_location,
+                          color: PoliceTheme.secondary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _locationLoading
-                                ? 'Detecting current location...'
+                                ? l10n.tr('addFine.detectingLocation')
                                 : _locationError != null
-                                    ? 'Manual location entry'
+                                    ? l10n.tr('addFine.manualLocation')
                                     : (_latitude != null && _longitude != null)
-                                        ? 'Location detected'
-                                        : 'Use current location to fill city automatically',
-                            style: const TextStyle(color: Colors.white),
+                                        ? l10n.tr('addFine.locationDetected')
+                                        : l10n.tr('addFine.useCurrentLocation'),
+                            style: const TextStyle(
+                              color: PoliceTheme.textPrimary,
+                            ),
                           ),
                         ),
                         TextButton(
                           onPressed:
                               _locationLoading ? null : _detectCurrentLocation,
-                          child: Text(_latitude != null ? 'Refresh' : 'Detect'),
+                          child: Text(
+                            _latitude != null
+                                ? l10n.tr('addFine.refresh')
+                                : l10n.tr('addFine.detect'),
+                          ),
                         ),
                       ],
                     ),
@@ -1107,31 +1335,31 @@ class _AddViolationPageState extends State<AddViolationPage> {
                         child: Text(
                           'Lat: ${_latitude!.toStringAsFixed(6)}, Lng: ${_longitude!.toStringAsFixed(6)}',
                           style: const TextStyle(
-                            color: Colors.white70,
+                            color: PoliceTheme.textSecondary,
                             fontSize: 12,
                           ),
                         ),
                       ),
                     if (_locationError != null)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
                         child: Text(
-                          'Auto-detect is unavailable on this emulator right now. You can type the city, street, and landmark manually.',
+                          l10n.tr('addFine.autoDetectUnavailable'),
                           style: TextStyle(
-                              color: Colors.orangeAccent, fontSize: 12),
+                              color: PoliceTheme.warning, fontSize: 12),
                         ),
                       ),
                   ],
                 ),
               ),
 
-              if (cities.isNotEmpty) ...[
+                           if (cities.isNotEmpty) ...[
                 FormField<String>(
                   initialValue: selectedCityId,
                   validator: (_) =>
                       (selectedCityId == null || selectedCityId!.isEmpty) &&
                               cityNameController.text.trim().isEmpty
-                          ? 'Select a city or type one manually'
+                          ? l10n.tr('addFine.selectCityOrType')
                           : null,
                   builder: (field) {
                     final selectedName =
@@ -1145,7 +1373,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                           onTap: _lookupsLoading
                               ? null
                               : () => _showLookupPicker(
-                                    title: 'Select City',
+                                    title: l10n.tr('addFine.selectTitleCity'),
                                     items: cities,
                                     selectedId: selectedCityId,
                                     onSelected: (value) {
@@ -1160,7 +1388,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                                   ),
                           child: InputDecorator(
                             decoration: InputDecoration(
-                              labelText: 'City',
+                              labelText: l10n.tr('addFine.city'),
                               prefixIcon: const Icon(Icons.location_city),
                               errorText: field.errorText,
                             ),
@@ -1168,17 +1396,21 @@ class _AddViolationPageState extends State<AddViolationPage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    selectedName ?? 'Select a city',
+                                    selectedName ??
+                                        l10n.tr('addFine.selectCity'),
+                                    textAlign: isRtl
+                                        ? TextAlign.right
+                                        : TextAlign.left,
                                     style: TextStyle(
                                       color: selectedName == null
-                                          ? Colors.white54
-                                          : Colors.white,
+                                          ? Colors.grey.shade500
+                                          : PoliceTheme.textPrimary,
                                     ),
                                   ),
                                 ),
                                 const Icon(
                                   Icons.keyboard_arrow_down,
-                                  color: Colors.white70,
+                                  color: PoliceTheme.textSecondary,
                                 ),
                               ],
                             ),
@@ -1190,14 +1422,14 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 ),
                 const SizedBox(height: 16),
               ] else ...[
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 16),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
                   child: Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      'City list is not loaded from the server yet. Type the city name manually below.',
-                      style: TextStyle(
-                        color: Colors.orangeAccent,
+                      l10n.tr('addFine.cityListUnavailable'),
+                      style: const TextStyle(
+                        color: PoliceTheme.warning,
                         fontSize: 12,
                       ),
                     ),
@@ -1207,17 +1439,18 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
               TextFormField(
                 controller: cityNameController,
-                textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'City Name',
-                  hintText: 'مثال: دمشق',
-                  prefixIcon: Icon(Icons.edit_location_alt_outlined),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.cityName'),
+                  hintText: l10n.tr('addFine.cityHint'),
+                  prefixIcon: const Icon(Icons.edit_location_alt_outlined),
                 ),
                 onChanged: (_) => setState(() {}),
                 validator: (v) {
                   if ((selectedCityId == null || selectedCityId!.isEmpty) &&
                       (v == null || v.trim().isEmpty)) {
-                    return 'Enter the city name';
+                    return l10n.tr('addFine.enterCity');
                   }
                   return null;
                 },
@@ -1226,24 +1459,27 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
               TextFormField(
                 controller: streetController,
-                textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'Street Name',
-                  hintText: 'مثال: شارع 29 أيار',
-                  prefixIcon: Icon(Icons.map),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.streetName'),
+                  hintText: l10n.tr('addFine.streetHint'),
+                  prefixIcon: const Icon(Icons.map),
                 ),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Enter street name' : null,
+                validator: (v) => v == null || v.isEmpty
+                    ? l10n.tr('addFine.enterStreet')
+                    : null,
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: landmarkController,
-                textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'Landmark (optional)',
-                  hintText: 'مثال: قرب مبنى البريد',
-                  prefixIcon: Icon(Icons.place_outlined),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.landmarkOptional'),
+                  hintText: l10n.tr('addFine.landmarkHint'),
+                  prefixIcon: const Icon(Icons.place_outlined),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1253,7 +1489,7 @@ class _AddViolationPageState extends State<AddViolationPage> {
                 validator: (_) => violationTypes.isNotEmpty &&
                         (selectedViolationTypeId == null ||
                             selectedViolationTypeId!.isEmpty)
-                    ? 'Select violation type'
+                    ? l10n.tr('addFine.selectViolationTypeError')
                     : null,
                 builder: (field) {
                   final selectedName =
@@ -1264,44 +1500,63 @@ class _AddViolationPageState extends State<AddViolationPage> {
                     children: [
                       InkWell(
                         borderRadius: BorderRadius.circular(14),
-                        onTap: _lookupsLoading
+                        onTap: _lookupsLoading || violationTypes.isEmpty
                             ? null
                             : () => _showLookupPicker(
-                                  title: 'Select Violation Type',
+                                  title: l10n.tr(
+                                    'addFine.selectTitleViolationType',
+                                  ),
                                   items: violationTypes,
                                   selectedId: selectedViolationTypeId,
                                   onSelected: (value) {
                                     setState(
-                                        () => selectedViolationTypeId = value);
+                                      () => selectedViolationTypeId = value,
+                                    );
                                     field.didChange(value);
                                   },
                                 ),
                         child: InputDecorator(
                           decoration: InputDecoration(
-                            labelText: 'Violation Type',
-                            prefixIcon: const Icon(Icons.warning_amber_rounded),
+                            labelText: l10n.tr('addFine.violationType'),
+                            prefixIcon:
+                                const Icon(Icons.warning_amber_rounded),
                             errorText: field.errorText,
                           ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Text(
-                                  selectedName ?? 'Select violation type',
+                                  selectedName ??
+                                      l10n.tr('addFine.selectViolationType'),
+                                  textAlign: isRtl
+                                      ? TextAlign.right
+                                      : TextAlign.left,
                                   style: TextStyle(
                                     color: selectedName == null
-                                        ? Colors.white54
-                                        : Colors.white,
+                                        ? Colors.grey.shade500
+                                        : PoliceTheme.textPrimary,
                                   ),
                                 ),
                               ),
                               const Icon(
                                 Icons.keyboard_arrow_down,
-                                color: Colors.white70,
+                                color: PoliceTheme.textSecondary,
                               ),
                             ],
                           ),
                         ),
                       ),
+                      if (violationTypes.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            l10n.tr('addFine.violationTypeListUnavailable'),
+                            style: const TextStyle(
+                              color: PoliceTheme.warning,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
                     ],
                   );
                 },
@@ -1310,31 +1565,22 @@ class _AddViolationPageState extends State<AddViolationPage> {
 
               TextFormField(
                 controller: descriptionController,
-                textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'Description (optional)',
-                  hintText: 'اكتبي الوصف بالعربي أو الإنجليزي',
-                  prefixIcon: Icon(Icons.notes),
+                textAlign: isRtl ? TextAlign.right : TextAlign.left,
+                textDirection: l10n.textDirection,
+                decoration: InputDecoration(
+                  labelText: l10n.tr('addFine.descriptionOptional'),
+                  hintText: l10n.tr('addFine.descriptionHint'),
+                  prefixIcon: const Icon(Icons.notes),
                 ),
                 maxLines: 2,
               ),
               const SizedBox(height: 24),
 
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Submit'),
-                ),
+              AppButton(
+                label: l10n.tr('addFine.submit'),
+                onPressed: _loading ? null : _submit,
+                loading: _loading,
+                icon: Icons.check_circle_outline,
               ),
             ],
           ),

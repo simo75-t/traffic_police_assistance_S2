@@ -19,9 +19,26 @@ CACHE_TTL = 300
 LOOKUP_TIMEOUT = 2
 
 
-def fetch_lookup_map(url: str, name_key: str = "name") -> Dict[str, Any]:
+def _build_lookup_headers(auth_header: Optional[str]) -> Dict[str, str]:
+    headers = {"Accept": "application/json"}
+    has_auth = bool(auth_header and auth_header.strip())
+    if has_auth:
+        headers["Authorization"] = auth_header.strip()
+    log.info("Lookup request auth header present=%s", has_auth)
+    return headers
+
+
+def fetch_lookup_map(
+    url: str,
+    name_key: str = "name",
+    auth_header: Optional[str] = None,
+) -> Dict[str, Any]:
     """Fetch lookup items and convert them to a lower-case name-to-id map."""
-    response = requests.get(url, timeout=LOOKUP_TIMEOUT)
+    response = requests.get(
+        url,
+        timeout=LOOKUP_TIMEOUT,
+        headers=_build_lookup_headers(auth_header),
+    )
     response.raise_for_status()
     data = response.json()
     mapping: Dict[str, Any] = {}
@@ -46,10 +63,17 @@ def fetch_lookup_map(url: str, name_key: str = "name") -> Dict[str, Any]:
     return mapping
 
 
-def get_lookups() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def get_lookups(
+    auth_header: Optional[str] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Return cached city and violation-type lookups."""
     now = time.time()
-    if CACHE["cities"] is not None and CACHE["types"] is not None and (now - CACHE["ts"]) < CACHE_TTL:
+    if (
+        not auth_header
+        and CACHE["cities"] is not None
+        and CACHE["types"] is not None
+        and (now - CACHE["ts"]) < CACHE_TTL
+    ):
         return CACHE["cities"], CACHE["types"]
 
     if getattr(settings, "TESTING", False):
@@ -57,13 +81,18 @@ def get_lookups() -> Tuple[Dict[str, Any], Dict[str, Any]]:
         return CACHE["cities"], CACHE["types"]
 
     try:
-        cities = fetch_lookup_map(CITIES_API, "name")
-        types = fetch_lookup_map(VIOLATION_TYPES_API, "name")
+        cities = fetch_lookup_map(CITIES_API, "name", auth_header=auth_header)
+        types = fetch_lookup_map(
+            VIOLATION_TYPES_API,
+            "name",
+            auth_header=auth_header,
+        )
     except Exception as exc:
         log.warning("Lookup fetch failed: %r", exc)
         cities, types = {}, {}
 
-    CACHE["cities"], CACHE["types"], CACHE["ts"] = cities, types, now
+    if not auth_header:
+        CACHE["cities"], CACHE["types"], CACHE["ts"] = cities, types, now
     return cities, types
 
 
@@ -78,12 +107,16 @@ def fuzzy_pick_key(name: str, vocab_keys: list, cutoff: float) -> Optional[str]:
     return best[0] if best else None
 
 
-def map_ids(city_name: Optional[str], violation_name: Optional[str]) -> Tuple[Optional[Any], Optional[Any], Optional[str], Optional[str]]:
+def map_ids(
+    city_name: Optional[str],
+    violation_name: Optional[str],
+    auth_header: Optional[str] = None,
+) -> Tuple[Optional[Any], Optional[Any], Optional[str], Optional[str]]:
     """Resolve extracted city and violation type names into Laravel ids."""
     city_id = vio_id = None
     city_fixed = vio_fixed = None
     try:
-        cities, types = get_lookups()
+        cities, types = get_lookups(auth_header=auth_header)
         city_keys = list(cities.keys())
         type_keys = list(types.keys())
         if city_name:

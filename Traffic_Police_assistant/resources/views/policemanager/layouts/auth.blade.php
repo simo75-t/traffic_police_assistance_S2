@@ -36,7 +36,8 @@
         }
 
         .auth-shell {
-            width: min(460px, 100%);
+            width: 100%;
+            max-width: 380px;
             background: rgba(246, 242, 233, 0.96);
             border: 1px solid rgba(255, 255, 255, 0.35);
             border-radius: 28px;
@@ -44,8 +45,10 @@
             overflow: hidden;
         }
 
+ 
+
         .auth-head {
-            padding: 28px 32px 20px;
+    padding: 20px 22px 12px;
             color: white;
             background: linear-gradient(135deg, rgba(15, 39, 66, 0.96), rgba(31, 95, 139, 0.92));
         }
@@ -60,9 +63,9 @@
             line-height: 1.7;
         }
 
-        .auth-body {
-            padding: 30px 32px 34px;
-        }
+       .auth-body {
+    padding: 20px 22px 22px;
+}
 
         .alert {
             padding: 14px 16px;
@@ -82,14 +85,15 @@
             margin-bottom: 8px;
         }
 
+ 
         input {
             width: 100%;
             border: 1px solid var(--pm-border);
             border-radius: 14px;
-            padding: 13px 15px;
+            padding: 10px 12px;
             font: inherit;
             background: #fff;
-            margin-bottom: 18px;
+            margin-bottom: 14px;
         }
 
         input:focus {

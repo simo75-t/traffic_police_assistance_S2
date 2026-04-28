@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../models/violation.dart';
 import '../../services/api_service.dart';
 import '../../services/secure_storage.dart';
+import '../../widgets/app_button.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/loading_widget.dart';
+import '../../widgets/quick_navigation_drawer.dart';
+import '../../widgets/section_header.dart';
 import '../../widgets/violation_card.dart';
 import 'violation_details_page.dart';
 
@@ -57,17 +64,21 @@ class _ViolationsSearchServerPageState
       final data = result.$1;
       final meta = result.$2;
 
+      if (!mounted) return;
+
       setState(() {
         if (page == 1) {
           _items = data;
         } else {
           _items.addAll(data);
         }
+
         _currentPage = (meta['current_page'] as num?)?.toInt() ?? page;
         _lastPage = (meta['last_page'] as num?)?.toInt() ?? 1;
         _total = (meta['total'] as num?)?.toInt() ?? _items.length;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) {
@@ -88,7 +99,7 @@ class _ViolationsSearchServerPageState
       try {
         final token = await SecureStorage.readToken();
         if (token == null || token.isEmpty) {
-          throw Exception('يجب تسجيل الدخول أولاً');
+          throw Exception('auth_required');
         }
 
         final res = await ApiService.searchViolations(
@@ -111,6 +122,7 @@ class _ViolationsSearchServerPageState
             .whereType<Map>()
             .map((e) => Violation.fromJson(Map<String, dynamic>.from(e)))
             .toList();
+
         final meta = rawMeta is Map
             ? Map<String, dynamic>.from(rawMeta)
             : <String, dynamic>{};
@@ -125,7 +137,7 @@ class _ViolationsSearchServerPageState
       }
     }
 
-    throw lastError ?? Exception('تعذر تنفيذ البحث');
+    throw lastError ?? Exception('search_failed');
   }
 
   void _resetAndSearch() {
@@ -137,6 +149,27 @@ class _ViolationsSearchServerPageState
     _search(page: 1);
   }
 
+  void _clearFilters() {
+    _plateCtrl.clear();
+    setState(() {
+      _fromDate = null;
+      _toDate = null;
+    });
+    _resetAndSearch();
+  }
+
+  String _localizedError(AppLocalizations l10n) {
+    if (_error == null || _error!.trim().isEmpty) {
+      return l10n.tr('search.errorFallback');
+    }
+
+    if (_error!.contains('auth_required')) {
+      return l10n.tr('search.authRequired');
+    }
+
+    return _error!;
+  }
+
   Future<void> _pickFrom() async {
     final picked = await showDatePicker(
       context: context,
@@ -144,7 +177,9 @@ class _ViolationsSearchServerPageState
       lastDate: DateTime(2100),
       initialDate: _fromDate ?? DateTime.now(),
     );
+
     if (picked == null) return;
+
     setState(() => _fromDate = picked);
   }
 
@@ -155,247 +190,320 @@ class _ViolationsSearchServerPageState
       lastDate: DateTime(2100),
       initialDate: _toDate ?? DateTime.now(),
     );
+
     if (picked == null) return;
+
     setState(() => _toDate = picked);
+  }
+
+  bool _handleScroll(ScrollNotification scrollInfo) {
+    if (!_loading &&
+        !_loadingMore &&
+        _currentPage < _lastPage &&
+        scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 120) {
+      _search(page: _currentPage + 1);
+      return true;
+    }
+
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('البحث في المخالفات')),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E21), Color(0xFF0B2A5B)],
-          ),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.12),
+    final l10n = AppLocalizations.of(context);
+    final drawer = const QuickNavigationDrawer();
+
+    return Directionality(
+      textDirection: l10n.textDirection,
+      child: Scaffold(
+        drawer: l10n.isRtl ? null : drawer,
+        endDrawer: l10n.isRtl ? drawer : null,
+        appBar: AppBar(
+          title: Text(l10n.tr('search.pageTitle')),
+          leading: l10n.isRtl
+              ? null
+              : Builder(
+                  builder: (context) => IconButton(
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                    icon: const Icon(Icons.menu),
                   ),
                 ),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _plateCtrl,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'رقم المركبة',
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon: const Icon(
-                          Icons.directions_car_outlined,
-                          color: Colors.white,
-                        ),
-                        suffixIcon: _plateCtrl.text.isEmpty
-                            ? null
-                            : IconButton(
-                                onPressed: () {
-                                  _plateCtrl.clear();
-                                  setState(() {});
-                                },
-                                icon: const Icon(
-                                  Icons.clear,
-                                  color: Colors.white70,
-                                ),
-                              ),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                      onSubmitted: (_) => _resetAndSearch(),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _DateChip(
-                            label: 'من تاريخ',
-                            value: _fromDate,
-                            onTap: _pickFrom,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _DateChip(
-                            label: 'إلى تاريخ',
-                            value: _toDate,
-                            onTap: _pickTo,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _resetAndSearch,
-                            icon: const Icon(Icons.search),
-                            label: const Text('بحث'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              _plateCtrl.clear();
-                              setState(() {
-                                _fromDate = null;
-                                _toDate = null;
-                              });
-                              _resetAndSearch();
-                            },
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('إعادة تعيين'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        'عدد النتائج: $_total',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                  ],
+          actions: [
+            if (l10n.isRtl)
+              Builder(
+                builder: (context) => IconButton(
+                  onPressed: () => Scaffold.of(context).openEndDrawer(),
+                  icon: const Icon(Icons.menu),
                 ),
               ),
-            ),
-            Expanded(
-              child: Builder(
-                builder: (_) {
-                  if (_loading && _currentPage == 1) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (_error != null) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'تعذر تنفيذ البحث:\n$_error',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (_items.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'لا توجد مخالفات مطابقة للبحث.',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    );
-                  }
-
-                  return NotificationListener<ScrollNotification>(
-                    onNotification: (scrollInfo) {
-                      if (!_loadingMore &&
-                          _currentPage < _lastPage &&
-                          scrollInfo.metrics.pixels >=
-                              scrollInfo.metrics.maxScrollExtent - 100) {
-                        _search(page: _currentPage + 1);
-                        return true;
-                      }
-                      return false;
-                    },
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      itemCount: _items.length + (_loadingMore ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index >= _items.length) {
-                          return const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-
-                        final violation = _items[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: ViolationCard(
-                            violation: violation,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ViolationDetailsPage(
-                                    violation: violation,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
           ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: () async => _resetAndSearch(),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _handleScroll,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding:
+                        const EdgeInsetsDirectional.fromSTEB(12, 12, 12, 10),
+                    child: AppCard(
+                      padding:
+                          const EdgeInsetsDirectional.fromSTEB(12, 12, 12, 12),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 360;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SectionHeader(
+                                title: l10n.tr('search.filtersTitle'),
+                                subtitle: l10n.tr('search.filtersSubtitle'),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _plateCtrl,
+                                textAlign: TextAlign.start,
+                                textDirection: l10n.textDirection,
+                                decoration: InputDecoration(
+                                  labelText: l10n.tr('search.plateNumber'),
+                                  prefixIcon: const Icon(
+                                    Icons.directions_car_outlined,
+                                  ),
+                                  suffixIcon: _plateCtrl.text.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          onPressed: () {
+                                            _plateCtrl.clear();
+                                            setState(() {});
+                                          },
+                                          icon: const Icon(Icons.clear),
+                                        ),
+                                ),
+                                onChanged: (_) => setState(() {}),
+                                onSubmitted: (_) => _resetAndSearch(),
+                              ),
+                              const SizedBox(height: 10),
+                              if (compact)
+                                Column(
+                                  children: [
+                                    _DateField(
+                                      label: l10n.tr('search.fromDate'),
+                                      value: _fromDate,
+                                      onTap: _pickFrom,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _DateField(
+                                      label: l10n.tr('search.toDate'),
+                                      value: _toDate,
+                                      onTap: _pickTo,
+                                    ),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _DateField(
+                                        label: l10n.tr('search.fromDate'),
+                                        value: _fromDate,
+                                        onTap: _pickFrom,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _DateField(
+                                        label: l10n.tr('search.toDate'),
+                                        value: _toDate,
+                                        onTap: _pickTo,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              const SizedBox(height: 10),
+                              if (compact)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    AppButton(
+                                      label: l10n.tr('search.search'),
+                                      onPressed: _resetAndSearch,
+                                      icon: Icons.search,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    AppButton(
+                                      label: l10n.tr('search.reset'),
+                                      onPressed: _clearFilters,
+                                      icon: Icons.refresh,
+                                      variant: AppButtonVariant.secondary,
+                                    ),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: AppButton(
+                                        label: l10n.tr('search.search'),
+                                        onPressed: _resetAndSearch,
+                                        icon: Icons.search,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: AppButton(
+                                        label: l10n.tr('search.reset'),
+                                        onPressed: _clearFilters,
+                                        icon: Icons.refresh,
+                                        variant: AppButtonVariant.secondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Text(
+                                  l10n.tr(
+                                    'search.results',
+                                    params: {'count': '$_total'},
+                                  ),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  textAlign: TextAlign.start,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (_loading && _currentPage == 1)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: LoadingWidget(label: l10n.tr('search.loading')),
+                    ),
+                  )
+                else if (_error != null)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Padding(
+                      padding:
+                          const EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12),
+                      child: EmptyStateWidget(
+                        title: l10n.tr('search.errorTitle'),
+                        subtitle: _localizedError(l10n),
+                        icon: Icons.error_outline,
+                        actionLabel: l10n.retry,
+                        onAction: _resetAndSearch,
+                      ),
+                    ),
+                  )
+                else if (_items.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Padding(
+                      padding:
+                          const EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12),
+                      child: EmptyStateWidget(
+                        title: l10n.tr('search.emptyTitle'),
+                        subtitle: l10n.tr('search.emptySubtitle'),
+                        icon: Icons.search_off_outlined,
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding:
+                        const EdgeInsetsDirectional.fromSTEB(12, 0, 12, 12),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index >= _items.length) {
+                            return Padding(
+                              padding:
+                                  const EdgeInsetsDirectional.only(top: 12),
+                              child: LoadingWidget(
+                                label: l10n.tr('search.loadingMore'),
+                                compact: true,
+                              ),
+                            );
+                          }
+
+                          final violation = _items[index];
+
+                          return Padding(
+                            padding:
+                                const EdgeInsetsDirectional.only(bottom: 10),
+                            child: ViolationCard(
+                              violation: violation,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ViolationDetailsPage(
+                                      violation: violation,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                        childCount: _items.length + (_loadingMore ? 1 : 0),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _DateChip extends StatelessWidget {
-  final String label;
-  final DateTime? value;
-  final VoidCallback onTap;
-
-  const _DateChip({
+class _DateField extends StatelessWidget {
+  const _DateField({
     required this.label,
     required this.value,
     required this.onTap,
   });
 
+  final String label;
+  final DateTime? value;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    final text =
-        value == null ? 'غير محدد' : DateFormat('yyyy-MM-dd').format(value!);
+    final l10n = AppLocalizations.of(context);
+
+    final text = value == null
+        ? l10n.tr('search.notSelected')
+        : DateFormat('yyyy-MM-dd').format(value!);
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: Colors.white.withValues(alpha: 0.10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      borderRadius: BorderRadius.circular(16),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.calendar_today_outlined),
+          isDense: true,
+          contentPadding:
+              const EdgeInsetsDirectional.fromSTEB(12, 12, 12, 12),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.calendar_today, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: const TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  Text(text, style: const TextStyle(color: Colors.white)),
-                ],
-              ),
-            ),
-          ],
+        child: Text(
+          text,
+          textAlign: TextAlign.start,
+          textDirection: l10n.textDirection,
         ),
       ),
     );

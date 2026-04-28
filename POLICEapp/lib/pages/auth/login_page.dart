@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+
+import '../../core/police_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/officer_presence_service.dart';
 import '../../services/secure_storage.dart';
+import '../../widgets/app_button.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/section_header.dart';
 import '../home/home_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -47,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       final tokenType = ApiService.extractLoginTokenType(res);
 
       if (token == null || token.isEmpty) {
-        _showError('Login failed: no token returned');
+        _showError(AppLocalizations.of(context).loginErrorNoToken);
         return;
       }
 
@@ -69,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
         MaterialPageRoute(builder: (_) => const HomePage()),
       );
     } catch (e) {
-      _showError('Login error: $e');
+      _showError(AppLocalizations.of(context).loginErrorGeneric('$e'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -77,93 +83,87 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final isRtl = l10n.isRtl;
 
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF050814), Color(0xFF0D47A1)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFF6F9FD), Color(0xFFE6EEF7)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
               child: Column(
                 children: [
-                  Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: scheme.secondary.withValues(alpha: 0.8),
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              blurRadius: 18,
-                              color: scheme.primary.withValues(alpha: 0.6),
-                            )
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.shield,
-                          size: 48,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Police Assistant',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Secure, fast fine management',
-                        style: TextStyle(color: Colors.grey.shade400),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    width: 88,
+                    height: 88,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF101424).withValues(alpha: 0.95),
-                      borderRadius: BorderRadius.circular(24),
+                      color: PoliceTheme.primary,
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: const [
                         BoxShadow(
-                          blurRadius: 18,
+                          color: Color(0x290B1E3A),
+                          blurRadius: 32,
                           offset: Offset(0, 14),
-                          color: Colors.black54,
                         ),
                       ],
-                      border: Border.all(color: Colors.white10),
                     ),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      size: 42,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    l10n.loginTitle,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.loginSubtitle,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  AppCard(
+                    padding: const EdgeInsets.all(20),
                     child: Form(
                       key: _formKey,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       child: Column(
                         children: [
+                          SectionHeader(
+                            title: l10n.loginSectionTitle,
+                            subtitle: l10n.loginSectionSubtitle,
+                          ),
+                          const SizedBox(height: 16),
                           TextFormField(
                             controller: emailController,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(
-                              labelText: 'Work Email',
-                              prefixIcon: Icon(Icons.badge),
+                            textAlign:
+                                isRtl ? TextAlign.right : TextAlign.left,
+                            textDirection: l10n.textDirection,
+                            decoration: InputDecoration(
+                              labelText: l10n.loginEmail,
+                              prefixIcon: const Icon(Icons.badge_outlined),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Enter your email';
+                                return l10n.loginValidationEmailRequired;
                               }
                               final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
                               if (!emailReg.hasMatch(value)) {
-                                return 'Enter a valid email';
+                                return l10n.loginValidationEmailInvalid;
                               }
                               return null;
                             },
@@ -172,36 +172,29 @@ class _LoginPageState extends State<LoginPage> {
                           TextFormField(
                             controller: passwordController,
                             obscureText: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: Icon(Icons.lock_outline),
+                            textAlign:
+                                isRtl ? TextAlign.right : TextAlign.left,
+                            textDirection: l10n.textDirection,
+                            decoration: InputDecoration(
+                              labelText: l10n.loginPassword,
+                              prefixIcon: const Icon(Icons.lock_outline),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Enter your password';
+                                return l10n.loginValidationPasswordRequired;
                               }
                               if (value.length < 8) {
-                                return 'Password must be at least 8 characters';
+                                return l10n.loginValidationPasswordShort;
                               }
                               return null;
                             },
                           ),
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _loading ? null : _submit,
-                              child: _loading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text('Login'),
-                            ),
+                          const SizedBox(height: 20),
+                          AppButton(
+                            label: l10n.loginSubmit,
+                            onPressed: _submit,
+                            loading: _loading,
+                            icon: Icons.login,
                           ),
                         ],
                       ),
@@ -211,7 +204,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

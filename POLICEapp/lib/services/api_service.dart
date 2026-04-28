@@ -23,6 +23,59 @@ class ApiService {
   static const Duration _jobPollDelay = Duration(seconds: 1);
   static const Duration _jobPollTimeout = Duration(seconds: 130);
   static const int _maxAttempts = 3;
+  static const List<Map<String, dynamic>> _offlineCities = [
+    {'id': 1, 'name': 'دمشق'},
+    {'id': 2, 'name': 'حلب'},
+    {'id': 3, 'name': 'حمص'},
+    {'id': 4, 'name': 'حماه'},
+    {'id': 5, 'name': 'اللاذقية'},
+    {'id': 6, 'name': 'طرطوس'},
+    {'id': 7, 'name': 'إدلب'},
+    {'id': 8, 'name': 'الرقة'},
+    {'id': 9, 'name': 'دير الزور'},
+    {'id': 10, 'name': 'الحسكة'},
+    {'id': 11, 'name': 'درعا'},
+    {'id': 12, 'name': 'السويداء'},
+    {'id': 13, 'name': 'ريف دمشق'},
+    {'id': 14, 'name': 'القنيطرة'},
+    {'id': 15, 'name': 'القامشلي'},
+    {'id': 16, 'name': 'منبج'},
+    {'id': 17, 'name': 'الباب'},
+    {'id': 18, 'name': 'الدرباسية'},
+    {'id': 19, 'name': 'جبل الزاوية'},
+  ];
+  static const List<Map<String, dynamic>> _offlineViolationTypes = [
+    {'id': 1, 'name': 'تجاوز السرعة المحددة', 'fine_amount': '25.00'},
+    {'id': 2, 'name': 'تجاوز السرعة بنسبة كبيرة', 'fine_amount': '75.00'},
+    {'id': 3, 'name': 'قطع الإشارة الحمراء', 'fine_amount': '100.00'},
+    {'id': 4, 'name': 'عدم الالتزام بإشارة المرور', 'fine_amount': '50.00'},
+    {'id': 5, 'name': 'الوقوف في مكان ممنوع', 'fine_amount': '15.00'},
+    {'id': 6, 'name': 'الوقوف المزدوج', 'fine_amount': '20.00'},
+    {'id': 7, 'name': 'عدم ارتداء حزام الأمان', 'fine_amount': '20.00'},
+    {'id': 8, 'name': 'استخدام الهاتف أثناء القيادة', 'fine_amount': '30.00'},
+    {'id': 9, 'name': 'عدم ارتداء الخوذة (دراجات)', 'fine_amount': '25.00'},
+    {'id': 10, 'name': 'القيادة بدون رخصة', 'fine_amount': '100.00'},
+    {'id': 11, 'name': 'انتهاء رخصة القيادة', 'fine_amount': '40.00'},
+    {'id': 12, 'name': 'انتهاء ترخيص المركبة', 'fine_amount': '35.00'},
+    {'id': 13, 'name': 'عدم وجود لوحات للمركبة', 'fine_amount': '80.00'},
+    {'id': 14, 'name': 'لوحات مزورة أو غير واضحة', 'fine_amount': '120.00'},
+    {'id': 15, 'name': 'السير بعكس الاتجاه', 'fine_amount': '120.00'},
+    {'id': 16, 'name': 'القيادة تحت تأثير الكحول', 'fine_amount': '200.00'},
+    {'id': 17, 'name': 'القيادة بتهور (تفحيط)', 'fine_amount': '150.00'},
+    {'id': 18, 'name': 'عدم إعطاء أولوية للمشاة', 'fine_amount': '50.00'},
+    {'id': 19, 'name': 'تحميل ركاب أو حمولة زائدة', 'fine_amount': '40.00'},
+    {'id': 20, 'name': 'إعاقة حركة السير', 'fine_amount': '30.00'},
+    {'id': 21, 'name': 'عدم تشغيل الأضواء ليلاً', 'fine_amount': '25.00'},
+    {'id': 22, 'name': 'القيادة بمركبة غير صالحة فنياً', 'fine_amount': '60.00'},
+    {'id': 23, 'name': 'تجاوز الإشارة الصفراء بشكل خطر', 'fine_amount': '45.00'},
+    {'id': 24, 'name': 'تغيير المسار دون إشارة', 'fine_amount': '35.00'},
+    {'id': 25, 'name': 'القيادة بسرعة بطيئة تعيق السير', 'fine_amount': '20.00'},
+    {'id': 26, 'name': 'عدم الالتزام بالمسار المحدد', 'fine_amount': '30.00'},
+    {'id': 27, 'name': 'القيادة بدون تأمين', 'fine_amount': '90.00'},
+    {'id': 28, 'name': 'استخدام منبه الصوت بشكل مزعج', 'fine_amount': '15.00'},
+    {'id': 29, 'name': 'رمي النفايات من المركبة', 'fine_amount': '20.00'},
+    {'id': 30, 'name': 'القيادة في مناطق ممنوعة', 'fine_amount': '70.00'},
+  ];
 
   static Future<Map<String, dynamic>> login(
     String email,
@@ -188,13 +241,19 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getCities(String token) async {
-    return _getLookupList(token: token, path: '/cities', entity: 'cities');
+    return _getLookupListWithFallback(
+      token: token,
+      primaryPath: '/cities',
+      fallbackPath: '/ai_cities',
+      entity: 'cities',
+    );
   }
 
   static Future<List<dynamic>> getViolationTypes(String token) async {
-    return _getLookupList(
+    return _getLookupListWithFallback(
       token: token,
-      path: '/violation-types',
+      primaryPath: '/violation-types',
+      fallbackPath: '/ai_violation-types',
       entity: 'violation types',
     );
   }
@@ -204,6 +263,7 @@ class ApiService {
       token: token,
       path: '/ai_cities',
       entity: 'AI cities',
+      requiresAuth: false,
     );
   }
 
@@ -212,6 +272,7 @@ class ApiService {
       token: token,
       path: '/ai_violation-types',
       entity: 'AI violation types',
+      requiresAuth: false,
     );
   }
 
@@ -312,6 +373,9 @@ class ApiService {
       response: await _sendMultipart(
         path: '/stt/transcribe',
         token: token,
+        fields: {
+          'auth_header': _buildAuthorizationHeader(token),
+        },
         filePaths: [
           _MultipartFilePath(field: 'audio', path: audioFile.path),
         ],
@@ -337,8 +401,8 @@ class ApiService {
     String jobId, {
     Duration delay = _jobPollDelay,
     Duration timeout = _jobPollTimeout,
-  }) {
-    return _pollJobResult(
+  }) async {
+    final data = await _pollJobResult(
       fetch: () => getSttResult(token, jobId),
       delay: delay,
       timeout: timeout,
@@ -347,6 +411,59 @@ class ApiService {
       failureMessage: (payload) => payload['error']?.toString() ?? 'STT failed',
       successStatuses: const {'success', 'completed', 'done'},
     );
+
+    debugPrint('STT poll raw response: ${jsonEncode(data)}');
+
+    final normalized = Map<String, dynamic>.from(data);
+    final transcript = extractSttTranscript(data);
+    final fields = extractSttFields(data);
+    debugPrint('STT extracted transcript: $transcript');
+    debugPrint('STT extracted fields: ${jsonEncode(fields)}');
+    if (_hasText(transcript)) {
+      normalized['transcript'] = transcript;
+      normalized['text'] = transcript;
+    }
+    if (fields.isNotEmpty) {
+      normalized['fields'] = fields;
+      normalized.addAll(fields);
+      debugPrint(
+        'STT applied vehicle_plate candidate: '
+        '${fields['vehicle_plate'] ?? normalized['vehicle_plate'] ?? ''}',
+      );
+    }
+    return normalized;
+  }
+
+  static String extractSttTranscript(Map<String, dynamic> payload) {
+    final text = _firstNonEmptyString([
+      payload['transcript'],
+      payload['text'],
+      _asMap(payload['result'])?['text'],
+      _asMap(payload['result'])?['transcript'],
+      _asMap(_asMap(payload['data'])?['result'])?['text'],
+      _asMap(_asMap(payload['data'])?['result'])?['transcript'],
+      _asMap(payload['data'])?['text'],
+      _asMap(payload['data'])?['transcript'],
+    ]);
+    return text ?? '';
+  }
+
+  static Map<String, dynamic> extractSttFields(Map<String, dynamic> payload) {
+    final candidates = [
+      payload['fields'],
+      _asMap(payload['result'])?['fields'],
+      _asMap(_asMap(payload['data'])?['result'])?['fields'],
+      _asMap(payload['data'])?['fields'],
+    ];
+
+    for (final candidate in candidates) {
+      final map = _asMap(candidate);
+      if (map != null && map.isNotEmpty) {
+        return map;
+      }
+    }
+
+    return const <String, dynamic>{};
   }
 
   static Future<void> _updateAssignmentStatus(
@@ -684,12 +801,28 @@ class ApiService {
       final extracted = _extractJsonEnvelope(cleaned);
       if (extracted != null) {
         try {
-          return jsonDecode(extracted);
+          final decoded = jsonDecode(extracted);
+          return _decodeNestedJsonString(decoded);
         } catch (_) {}
       }
 
       return null;
     }
+  }
+
+  static dynamic _decodeNestedJsonString(dynamic value) {
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          return jsonDecode(trimmed);
+        } catch (_) {
+          return value;
+        }
+      }
+    }
+
+    return value;
   }
 
   static String? _extractJsonEnvelope(String body) {
@@ -787,20 +920,28 @@ class ApiService {
   }
 
   static Future<List<dynamic>> _getLookupList({
-    required String token,
+    String? token,
     required String path,
     required String entity,
+    bool requiresAuth = true,
   }) async {
     final response = await _sendJson(
       method: 'GET',
       path: path,
       token: token,
+      requiresAuth: requiresAuth,
     );
 
     final decoded = _decodeMapOrListOrThrow(
       response.body,
       statusCode: response.statusCode,
     );
+
+    if (kDebugMode && entity == 'violation types') {
+      debugPrint(
+        'ApiService.getViolationTypes: raw shape=${_describeResponseShape(decoded)}',
+      );
+    }
 
     if (decoded is List<dynamic>) {
       return decoded;
@@ -811,17 +952,69 @@ class ApiService {
       return data;
     }
 
-    _logParseFailure(
-      response.body,
-      response.statusCode,
-      'Expected list for $entity',
-    );
+    final extractedList = _extractList(decoded);
+    return extractedList;
+  }
 
-    throw AppApiException(
-      statusCode: response.statusCode,
-      message: 'Unexpected response format: expected list of $entity',
-      rawBody: response.body,
-    );
+  static Future<List<dynamic>> _getLookupListWithFallback({
+    required String token,
+    required String primaryPath,
+    required String fallbackPath,
+    required String entity,
+  }) async {
+    try {
+      final primary = await _getLookupList(
+        token: token,
+        path: primaryPath,
+        entity: entity,
+      );
+      if (primary.isNotEmpty) {
+        return primary;
+      }
+    } on AppApiException catch (error) {
+      if (error.statusCode != 401 &&
+          error.statusCode != 403 &&
+          error.statusCode != 404 &&
+          error.statusCode != 0) {
+        rethrow;
+      }
+      debugPrint(
+        'Lookup fallback for $entity after primary failure: '
+        '${error.statusCode} ${error.message}',
+      );
+    } catch (error) {
+      debugPrint('Lookup fallback for $entity after unexpected error: $error');
+    }
+
+    try {
+      final fallback = await _getLookupList(
+        path: fallbackPath,
+        entity: entity,
+        requiresAuth: false,
+      );
+      if (fallback.isNotEmpty) {
+        return fallback;
+      }
+    } on AppApiException catch (error) {
+      debugPrint(
+        'Offline lookup fallback for $entity after public failure: '
+        '${error.statusCode} ${error.message}',
+      );
+    } catch (error) {
+      debugPrint(
+        'Offline lookup fallback for $entity after unexpected public error: '
+        '$error',
+      );
+    }
+
+    if (entity == 'cities') {
+      return _offlineCities;
+    }
+    if (entity == 'violation types') {
+      return _offlineViolationTypes;
+    }
+
+    return <dynamic>[];
   }
 
   static String? _extractJobId(Map<String, dynamic> response) {
@@ -839,6 +1032,12 @@ class ApiService {
     while (queue.isNotEmpty) {
       final current = queue.removeAt(0);
 
+      final nestedString = _decodeNestedJsonString(current);
+      if (!identical(nestedString, current)) {
+        queue.add(nestedString);
+        continue;
+      }
+
       if (current is List<dynamic>) {
         return current;
       }
@@ -848,7 +1047,14 @@ class ApiService {
         continue;
       }
 
-      for (final key in const ['data', 'items', 'results', 'rows']) {
+      for (final key in const [
+        'data',
+        'items',
+        'results',
+        'rows',
+        'violations',
+        'records',
+      ]) {
         final nested = map[key];
         if (nested is List<dynamic>) {
           return nested;
@@ -860,6 +1066,20 @@ class ApiService {
     }
 
     return <dynamic>[];
+  }
+
+  static String _describeResponseShape(dynamic value) {
+    if (value is List) {
+      final first = value.isNotEmpty ? value.first.runtimeType : 'empty';
+      return 'List(len=${value.length}, first=$first)';
+    }
+
+    final map = _asMap(value);
+    if (map != null) {
+      return 'Map(keys=${map.keys.toList()})';
+    }
+
+    return value.runtimeType.toString();
   }
 
   static Map<String, dynamic> _extractPaginationMeta(dynamic decoded) {

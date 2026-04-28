@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+
+import '../../l10n/app_localizations.dart';
+import '../../models/violation.dart';
 import '../../services/api_service.dart';
 import '../../services/secure_storage.dart';
-import '../../models/violation.dart';
-import 'violation_details_page.dart';
-import '../../widgets/violation_card.dart';
 import '../../utils/data_utils.dart';
+import '../../widgets/app_button.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/loading_widget.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/violation_card.dart';
+import 'violation_details_page.dart';
 
 class MyViolationsPage extends StatefulWidget {
   const MyViolationsPage({super.key});
@@ -34,7 +40,7 @@ class _MyViolationsPageState extends State<MyViolationsPage> {
       final token = await SecureStorage.readToken();
       if (token == null || token.isEmpty) {
         setState(() {
-          _error = 'Please login first.';
+          _error = 'auth_required';
           _loading = false;
         });
         return;
@@ -42,7 +48,6 @@ class _MyViolationsPageState extends State<MyViolationsPage> {
 
       final list = await ApiService.getViolations(token);
 
-      // ✅ SORT by best date (occurred_at fallback created_at)
       list.sort((a, b) {
         final da = AppDateUtils.violationDate(
           occurredAt: a.occurredAt,
@@ -57,7 +62,7 @@ class _MyViolationsPageState extends State<MyViolationsPage> {
         if (da == null) return 1;
         if (db == null) return -1;
 
-        return db.compareTo(da); // desc
+        return db.compareTo(da);
       });
 
       setState(() {
@@ -74,9 +79,13 @@ class _MyViolationsPageState extends State<MyViolationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final localizedError =
+        _error == 'auth_required' ? l10n.violationsLoginRequired : _error;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('مخالفاتي'),
+        title: Text(l10n.violationsPageTitle),
         actions: [
           IconButton(
             onPressed: _load,
@@ -84,62 +93,61 @@ class _MyViolationsPageState extends State<MyViolationsPage> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.redAccent),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: _load,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Try again'),
-                        ),
-                      ],
-                    ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            SectionHeader(
+              title: l10n.violationsSectionTitle,
+              subtitle: l10n.violationsSectionSubtitle,
+            ),
+            const SizedBox(height: 16),
+            if (_loading)
+              LoadingWidget(label: l10n.violationsLoading)
+            else if (_error != null)
+              Column(
+                children: [
+                  EmptyStateWidget(
+                    title: l10n.violationsErrorTitle,
+                    subtitle: localizedError ?? '',
+                    icon: Icons.error_outline,
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: _items.isEmpty
-                      ? ListView(
-                          children: const [
-                            SizedBox(height: 140),
-                            Center(child: Text('ما عندك مخالفات حالياً')),
-                          ],
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _items.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, i) {
-                            final v = _items[i];
-
-                            return ViolationCard(
-                              violation: v,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        ViolationDetailsPage(violation: v),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                  const SizedBox(height: 12),
+                  AppButton(
+                    label: l10n.tryAgain,
+                    onPressed: _load,
+                    icon: Icons.refresh,
+                    variant: AppButtonVariant.secondary,
+                  ),
+                ],
+              )
+            else if (_items.isEmpty)
+              EmptyStateWidget(
+                title: l10n.violationsEmptyTitle,
+                subtitle: l10n.violationsEmptySubtitle,
+                icon: Icons.fact_check_outlined,
+              )
+            else ...[
+              for (final violation in _items) ...[
+                ViolationCard(
+                  violation: violation,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ViolationDetailsPage(violation: violation),
+                      ),
+                    );
+                  },
                 ),
+                const SizedBox(height: 12),
+              ],
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

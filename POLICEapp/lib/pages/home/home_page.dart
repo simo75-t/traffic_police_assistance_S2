@@ -2,18 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/police_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/profile.dart';
 import '../../models/violation.dart';
 import '../../services/api_service.dart';
 import '../../services/officer_presence_service.dart';
 import '../../services/secure_storage.dart';
-import '../../widgets/violation_card.dart';
 import '../../utils/data_utils.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/empty_state_widget.dart';
+import '../../widgets/loading_widget.dart';
+import '../../widgets/quick_navigation_drawer.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/status_badge.dart';
+import '../../widgets/violation_card.dart';
 import '../profile/profile_page.dart';
 import 'add_fine_page.dart';
 import 'dispatch_assignments_page.dart';
-import 'violation_details_page.dart';
 import 'my_violation.dart';
+import 'violation_details_page.dart';
 import 'violations_search_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -74,27 +82,24 @@ class _HomePageState extends State<HomePage> {
     await _loadAll();
   }
 
-  /// ✅ FIX: count today using occurred_at, fallback created_at,
-  /// and handle "YYYY-MM-DD HH:mm:ss"
   int _countToday(List<Violation> list) {
     final now = DateTime.now();
-    int c = 0;
+    var count = 0;
 
-    for (final v in list) {
+    for (final violation in list) {
       final dt = AppDateUtils.violationDate(
-        occurredAt: v.occurredAt,
-        createdAt: v.createdAt,
+        occurredAt: violation.occurredAt,
+        createdAt: violation.createdAt,
       );
       if (dt == null) continue;
 
       if (AppDateUtils.isSameDay(dt, now)) {
-        c++;
+        count++;
       }
     }
-    return c;
+    return count;
   }
 
-  /// ✅ FIX: show recent 4 sorted by best date (occurredAt fallback createdAt)
   List<Violation> _recentSorted(List<Violation> list) {
     final sorted = List<Violation>.from(list);
 
@@ -108,28 +113,70 @@ class _HomePageState extends State<HomePage> {
         createdAt: b.createdAt,
       );
 
-      // nulls go last
       if (da == null && db == null) return 0;
       if (da == null) return 1;
       if (db == null) return -1;
 
-      return db.compareTo(da); // desc
+      return db.compareTo(da);
     });
 
     return sorted.take(4).toList();
   }
 
+  Future<void> _openProfile() async {
+    final token = _token ?? await SecureStorage.readToken();
+    if (!mounted) return;
+
+    if (token == null) {
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.tr('home.noToken'))),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProfilePage(token: token),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final drawer = const QuickNavigationDrawer();
 
     return Scaffold(
+      drawer: l10n.isRtl ? null : drawer,
+      endDrawer: l10n.isRtl ? drawer : null,
+      appBar: AppBar(
+        title: Text(l10n.appTitle),
+        leading: l10n.isRtl
+            ? null
+            : Builder(
+                builder: (context) => IconButton(
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu),
+                ),
+              ),
+        actions: [
+          if (l10n.isRtl)
+            Builder(
+              builder: (context) => IconButton(
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
+                icon: const Icon(Icons.menu),
+              ),
+            ),
+        ],
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF0A0E21), Color(0xFF0B2A5B)],
+            colors: [Color(0xFFF5F8FC), Color(0xFFE8EEF6)],
           ),
         ),
         child: SafeArea(
@@ -139,9 +186,7 @@ class _HomePageState extends State<HomePage> {
               final loading =
                   violationsSnap.connectionState == ConnectionState.waiting;
               final hasError = violationsSnap.hasError;
-
               final list = violationsSnap.data ?? <Violation>[];
-
               final recent = _recentSorted(list);
               final total = list.length;
               final todayCount = _countToday(list);
@@ -149,156 +194,134 @@ class _HomePageState extends State<HomePage> {
               return RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
                   children: [
-                    // HEADER
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FutureBuilder<Profile>(
-                            future: _profileFuture,
-                            builder: (context, profileSnap) {
-                              final name = profileSnap.data?.name ?? '...';
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'مرحباً، $name',
-                                    style: textTheme.titleMedium?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
+                    FutureBuilder<Profile>(
+                      future: _profileFuture,
+                      builder: (context, profileSnap) {
+                        final name =
+                            profileSnap.data?.name ?? l10n.tr('home.officerFallback');
+
+                        return AppCard(
+                          padding: EdgeInsets.zero,
+                          backgroundColor: PoliceTheme.primary,
+                          borderColor: PoliceTheme.primary,
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              gradient: const LinearGradient(
+                                colors: [PoliceTheme.primary, PoliceTheme.secondary],
+                                begin: AlignmentDirectional.topStart,
+                                end: AlignmentDirectional.bottomEnd,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            l10n.tr(
+                                              'home.welcomeBack',
+                                              params: {'name': name},
+                                            ),
+                                            style: textTheme.titleLarge?.copyWith(
+                                              color: Colors.white,
+                                            ),
+                                            textAlign: TextAlign.start,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            l10n.tr('home.welcomeSubtitle'),
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.82,
+                                              ),
+                                            ),
+                                            textAlign: TextAlign.start,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: _online
-                                              ? Colors.greenAccent
-                                              : Colors.redAccent,
-                                          shape: BoxShape.circle,
-                                        ),
+                                    IconButton(
+                                      onPressed: _openProfile,
+                                      style: IconButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.white.withValues(alpha: 0.12),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        _online
-                                            ? 'متصل (Online)'
-                                            : 'غير متصل (Offline)',
-                                        style: textTheme.bodySmall
-                                            ?.copyWith(color: Colors.white70),
+                                      icon: const Icon(
+                                        Icons.person_outline,
+                                        color: Colors.white,
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.person,
-                              color: Colors.white, size: 28),
-                          onPressed: () async {
-                            final token =
-                                _token ?? await SecureStorage.readToken();
-                            if (!context.mounted) {
-                              return;
-                            }
-
-                            if (token == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("No token found, please login"),
+                                    ),
+                                  ],
                                 ),
-                              );
-                              return;
-                            }
-
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ProfilePage(token: token),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF144A8F), Color(0xFF0A1E3D)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'لوحة التحكم',
-                            style: textTheme.titleLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
+                                const SizedBox(height: 20),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    StatusBadge(
+                                      label: _online
+                                          ? l10n.tr('home.online')
+                                          : l10n.tr('home.offline'),
+                                      color: _online
+                                          ? PoliceTheme.success
+                                          : PoliceTheme.error,
+                                    ),
+                                    StatusBadge(
+                                      label: l10n.tr(
+                                        'home.todayCount',
+                                        params: {'count': '$todayCount'},
+                                      ),
+                                      color: PoliceTheme.accent,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _MetricTile(
+                                        label: l10n.tr('home.metricToday'),
+                                        value: '$todayCount',
+                                        icon: Icons.today_outlined,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _MetricTile(
+                                        label:
+                                            l10n.tr('home.metricTotalViolations'),
+                                        value: '$total',
+                                        icon: Icons.shield_outlined,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'تابع المخالفات والبلاغات وحالة الاتصال بسرعة.',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: Colors.white70,
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _MiniStatusBadge(
-                                  label: 'اليوم',
-                                  value: '$todayCount',
-                                  icon: Icons.today,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _MiniStatusBadge(
-                                  label: 'الإجمالي',
-                                  value: '$total',
-                                  icon: Icons.local_police,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-
-                    const SizedBox(height: 18),
-
-                    // QUICK STATS
-
-                    const SizedBox(height: 18),
-
-                    // ACTION BUTTONS
-                    _PrimaryActionButton(
-                      title: 'تسجيل مخالفة جديدة',
-                      subtitle: 'OCR + تصوير اللوحة',
-                      icon: Icons.add_a_photo,
+                    const SizedBox(height: 16),
+                    SectionHeader(
+                      title: l10n.tr('home.quickActionsTitle'),
+                      subtitle: l10n.tr('home.quickActionsSubtitle'),
+                    ),
+                    const SizedBox(height: 10),
+                    _ActionTile(
+                      title: l10n.tr('home.actionRegisterTitle'),
+                      subtitle: l10n.tr('home.actionRegisterSubtitle'),
+                      icon: Icons.add_a_photo_outlined,
+                      accent: PoliceTheme.primary,
                       onTap: () async {
                         final created = await Navigator.push(
                           context,
@@ -308,17 +331,16 @@ class _HomePageState extends State<HomePage> {
                         );
 
                         if (created == true) {
-                          await _refresh(); // ✅ force reload
+                          await _refresh();
                         }
                       },
                     ),
-
-                    const SizedBox(height: 12),
-
-                    _SecondaryActionButton(
-                      title: 'المخالفات',
-                      subtitle: 'عرض كل المخالفات التي سجلتها',
-                      icon: Icons.list_alt,
+                    const SizedBox(height: 10),
+                    _ActionTile(
+                      title: l10n.tr('home.actionMyViolationsTitle'),
+                      subtitle: l10n.tr('home.actionMyViolationsSubtitle'),
+                      icon: Icons.list_alt_outlined,
+                      accent: PoliceTheme.secondary,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -328,13 +350,12 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                     ),
-
-                    const SizedBox(height: 12),
-
-                    _SecondaryActionButton(
-                      title: 'بلاغات الاستجابة',
-                      subtitle: 'عرض البلاغات المخصصة لك',
-                      icon: Icons.notifications_active,
+                    const SizedBox(height: 10),
+                    _ActionTile(
+                      title: l10n.tr('home.actionDispatchTitle'),
+                      subtitle: l10n.tr('home.actionDispatchSubtitle'),
+                      icon: Icons.notifications_active_outlined,
+                      accent: PoliceTheme.processing,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -344,77 +365,62 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                     ),
-
-                    const SizedBox(height: 12),
-
-                    _SecondaryActionButton(
-                      title: 'بحث',
-                      subtitle: 'بحث المخالفات باللوحة والتاريخ',
-                      icon: Icons.manage_search,
+                    const SizedBox(height: 10),
+                    _ActionTile(
+                      title: l10n.tr('home.actionSearchTitle'),
+                      subtitle: l10n.tr('home.actionSearchSubtitle'),
+                      icon: Icons.manage_search_outlined,
+                      accent: PoliceTheme.accent,
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ViolationsSearchServerPage(),
+                            builder: (_) =>
+                                const ViolationsSearchServerPage(),
                           ),
                         );
                       },
                     ),
-
-                    const SizedBox(height: 22),
-
-                    Text(
-                      'المخالفات الأخيرة',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    const SizedBox(height: 20),
+                    SectionHeader(
+                      title: l10n.tr('home.recentTitle'),
+                      subtitle: l10n.tr('home.recentSubtitle'),
                     ),
                     const SizedBox(height: 10),
-
                     if (loading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
+                      LoadingWidget(label: l10n.tr('home.loadingRecent'))
                     else if (hasError)
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          'فشل تحميل البيانات: ${violationsSnap.error}',
-                          style: const TextStyle(color: Colors.white70),
-                        ),
+                      EmptyStateWidget(
+                        title: l10n.tr('home.errorTitle'),
+                        subtitle: '${violationsSnap.error}',
+                        icon: Icons.error_outline,
+                        actionLabel: l10n.retry,
+                        onAction: _refresh,
                       )
                     else if (recent.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Text(
-                          "No violations found",
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
+                      EmptyStateWidget(
+                        title: l10n.tr('home.emptyTitle'),
+                        subtitle: l10n.tr('home.emptySubtitle'),
+                        icon: Icons.fact_check_outlined,
                       )
                     else
                       ...recent.map(
-                        (v) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
+                        (violation) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: ViolationCard(
-                            violation: v,
+                            violation: violation,
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ViolationDetailsPage(violation: v),
+                                      ViolationDetailsPage(violation: violation),
                                 ),
                               );
                             },
                           ),
                         ),
                       ),
-
-                    const SizedBox(height: 8),
                   ],
                 ),
               );
@@ -426,53 +432,56 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _MiniStatusBadge extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _MiniStatusBadge({
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
     required this.label,
     required this.value,
     required this.icon,
   });
 
+  final String label;
+  final String value;
+  final IconData icon;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: Colors.white.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
+            child: Icon(icon, color: Colors.white),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: Colors.white70)),
-                const SizedBox(height: 4),
-                Text(value,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        )),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white70,
+                      ),
+                  textAlign: TextAlign.start,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Colors.white,
+                      ),
+                  textAlign: TextAlign.start,
+                ),
               ],
             ),
           ),
@@ -482,132 +491,68 @@ class _MiniStatusBadge extends StatelessWidget {
   }
 }
 
-class _PrimaryActionButton extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _PrimaryActionButton({
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
     required this.title,
     required this.subtitle,
     required this.icon,
+    required this.accent,
     required this.onTap,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E88FF),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SecondaryActionButton extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
+  final Color accent;
   final VoidCallback onTap;
-
-  const _SecondaryActionButton({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-  });
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
+    return AppCard(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: Colors.white),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 14, 14, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(subtitle,
-                      style:
-                          textTheme.bodySmall?.copyWith(color: Colors.white70)),
-                ],
-              ),
+            child: Icon(icon, color: accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                  textAlign: TextAlign.start,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.start,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            l10n.isRtl
+                ? Icons.chevron_left_rounded
+                : Icons.chevron_right_rounded,
+            color: PoliceTheme.textSecondary,
+          ),
+        ],
       ),
     );
   }

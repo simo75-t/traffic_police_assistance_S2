@@ -1,8 +1,6 @@
 @extends('policemanager.layouts.app')
 
-@section('title', 'Violation Heatmap')
-@section('page_title', 'Violation Heatmap')
-@section('page_description', 'Generate heatmap analysis jobs, poll their progress, and inspect returned hotspots, ranking, and trends.')
+
 
 @section('content')
     <link
@@ -18,43 +16,46 @@
         id="heatmap-app"
         data-generate-url="{{ route('policemanager.heatmap.generate') }}"
         data-result-url-template="{{ route('policemanager.heatmap.result', ['job_id' => '__JOB_ID__']) }}"
+        data-prediction-generate-url="{{ route('policemanager.heatmap.prediction.generate') }}"
+        data-prediction-result-url-template="{{ route('policemanager.heatmap.prediction.result', ['job_id' => '__JOB_ID__']) }}"
         data-initial-filters='@json($filters)'
     >
-        <section class="heatmap-hero">
-            <div class="heatmap-hero__content">
-                <span class="heatmap-eyebrow">ai analytics</span>
-                <h1>Traffic Violation Hotspots</h1>
-                <p>
-                    Generate hotspot cells from real violation locations for the selected city and period.
-                    Higher intensity means nearby violations are more concentrated.
-                </p>
+        <section class="dashboard-toolbar">
+            <div class="dashboard-toolbar__filters">
+                 </div>
+            <div class="dashboard-toolbar__summary">
+                <h1>الخريطة الحرارية للمخالفات</h1>
+                <p>تحليل المناطق الساخنة وتوصيات توزيع الدوريات</p>
             </div>
-
-            <div class="heatmap-hero__meta">
-                <div class="hero-chip">
-                    <span class="hero-chip__label">Job Status</span>
-                    <strong id="job-status-chip">Idle</strong>
+                <div class="toolbar-pill">
+                    <span class="toolbar-pill__label">الفترة الزمنية</span>
+                    <strong id="timeline-range">-</strong>
                 </div>
-                <div class="hero-chip">
-                    <span class="hero-chip__label">Hotspot Cells</span>
-                    <strong id="points-count-chip">0</strong>
+                <div class="toolbar-pill">
+                    <span class="toolbar-pill__label">المدينة</span>
+                    <strong id="timeline-city">-</strong>
                 </div>
-            </div>
+                <button id="poll-button" type="button" class="toolbar-pill toolbar-pill--action">
+                    <span class="toolbar-pill__label">النتائج</span>
+                    <strong>تحديث النتائج</strong>
+                </button>
+           
         </section>
 
-        <section class="heatmap-panel">
+        <section class="heatmap-panel heatmap-panel--filters">
             <div class="panel-heading">
                 <div>
-                    <h2>Generate Heatmap</h2>
-                    <p>Choose the city, period, and optional analysis sections.</p>
+                    <h2> الفلاتر</h2>
+                    <p>حدد المدينة والفترة ونوع المخالفة ثم اطلب التحليل والموجز التشغيلي.</p>
                 </div>
+                
             </div>
 
-            <form id="heatmap-form" class="heatmap-filters heatmap-filters--wide">
+            <form id="heatmap-form" class="heatmap-filters heatmap-filters--dashboard">
                 <div class="field">
-                    <label for="city">City</label>
+                    <label for="city">المدينة</label>
                     <select id="city" name="city" required>
-                        <option value="">Select city</option>
+                        <option value="">اختر المدينة</option>
                         @foreach($cities as $city)
                             <option value="{{ $city->name }}" @selected(($filters['city'] ?? '') === $city->name)>{{ $city->name }}</option>
                         @endforeach
@@ -62,19 +63,19 @@
                 </div>
 
                 <div class="field">
-                    <label for="date_from">From Date</label>
+                    <label for="date_from">من تاريخ</label>
                     <input id="date_from" type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}" required>
                 </div>
 
                 <div class="field">
-                    <label for="date_to">To Date</label>
+                    <label for="date_to">إلى تاريخ</label>
                     <input id="date_to" type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}" required>
                 </div>
 
                 <div class="field">
-                    <label for="violation_type_id">Violation Type</label>
+                    <label for="violation_type_id">نوع المخالفة</label>
                     <select id="violation_type_id" name="violation_type_id">
-                        <option value="">All Types (combined)</option>
+                        <option value="">كل الأنواع</option>
                         @foreach($violationTypes as $type)
                             <option value="{{ $type->id }}" @selected((string) ($filters['violation_type_id'] ?? '') === (string) $type->id)>
                                 {{ $type->name }}
@@ -84,7 +85,7 @@
                 </div>
 
                 <div class="field">
-                    <label for="time_bucket">Time Bucket</label>
+                    <label for="time_bucket">الفترة الزمنية</label>
                     <select id="time_bucket" name="time_bucket">
                         @foreach($timeBucketOptions as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['time_bucket'] ?? '') === $value)>{{ $label }}</option>
@@ -92,10 +93,8 @@
                     </select>
                 </div>
 
-                <input type="hidden" name="grid_size_meters" value="{{ $filters['grid_size_meters'] ?? '300' }}">
-
                 <div class="field">
-                    <label for="comparison_mode">Comparison Mode</label>
+                    <label for="comparison_mode">المقارنة</label>
                     <select id="comparison_mode" name="comparison_mode">
                         @foreach($comparisonModeOptions as $value => $label)
                             <option value="{{ $value }}" @selected(($filters['comparison_mode'] ?? '') === $value)>{{ $label }}</option>
@@ -104,125 +103,189 @@
                 </div>
 
                 <div class="field field--toggles">
-                    <label>Analysis Options</label>
+                    <label>خيارات إضافية</label>
                     <label class="toggle">
                         <input type="checkbox" name="include_ranking" value="1" @checked(($filters['include_ranking'] ?? '0') === '1')>
-                        <span>Include ranking</span>
+                        <span>إظهار ترتيب المناطق</span>
                     </label>
                     <label class="toggle">
                         <input type="checkbox" name="include_trend" value="1" @checked(($filters['include_trend'] ?? '0') === '1')>
-                        <span>Include trend</span>
+                        <span>إظهار اتجاه المخالفات</span>
                     </label>
                 </div>
 
+                <input type="hidden" name="grid_size_meters" value="{{ $filters['grid_size_meters'] ?? '300' }}">
+
                 <div class="heatmap-filters__actions">
-                    <button id="generate-button" type="submit" class="btn btn-primary">Generate Heatmap</button>
-                    <button id="poll-button" type="button" class="btn btn-secondary">Refresh Result</button>
+                    <button id="generate-button" type="submit" class="btn btn-primary">توليد الخريطة الحرارية</button>
+                    <button id="prediction-button" type="button" class="btn btn-secondary" disabled>توليد توصيات الذكاء الاصطناعي</button>
+                    <button id="prediction-poll-button" type="button" class="btn btn-secondary" disabled>تحديث التوصيات</button>
                 </div>
             </form>
-
-            <p class="helper-note">Demo hotspot support is always included in the analysis pipeline.</p>
         </section>
 
-        <section class="heatmap-panel heatmap-panel--map">
-            <div class="panel-heading panel-heading--stack">
-                <div>
-                    <h2>Hotspot Cells</h2>
-                    <p>Markers represent hotspot cells, not individual violations. More violations can still be grouped into a smaller number of nearby cells.</p>
-                </div>
-                <div class="heatmap-legend">
-                    <span>Low</span>
-                    <div class="heatmap-legend__bar"></div>
-                    <span>High</span>
-                </div>
-            </div>
-
-            <div id="heatmap-stage" class="heatmap-stage">
-                <div id="heatmap-map" class="heatmap-map"></div>
-                <div id="heatmap-feedback" class="heatmap-empty heatmap-empty--overlay">
-                    <div class="heatmap-empty__icon">!</div>
-                    <h2>No analysis result yet</h2>
-                    <p>Submit a heatmap request to populate generated hotspot cells.</p>
-                </div>
-            </div>
-        </section>
-
-        <section class="heatmap-stats heatmap-stats--after-map">
-            <article class="metric-card">
-                <span class="metric-card__label">Job ID</span>
-                <strong class="metric-card__value metric-card__value--small" id="metric-job-id">Not started</strong>
-                <p class="metric-card__hint">Latest queued or completed request.</p>
+        <section class="kpi-grid">
+            <article class="kpi-card">
+                <span class="kpi-card__label">الفترة الزمنية</span>
+                <strong class="kpi-card__value" id="metric-period">-</strong>
+                <p class="kpi-card__hint">الفترة المعتمدة في التحليل الحالي.</p>
             </article>
 
-            <article class="metric-card">
-                <span class="metric-card__label">Total Violations</span>
-                <strong class="metric-card__value" id="metric-total-violations">0</strong>
-                <p class="metric-card__hint">Returned in the heatmap result metadata.</p>
+            <article class="kpi-card">
+                <span class="kpi-card__label">إجمالي المخالفات</span>
+                <strong class="kpi-card__value" id="metric-total-violations">0</strong>
+                <p class="kpi-card__hint">عدد السجلات الداخلة في الخريطة الحرارية.</p>
             </article>
 
-            <article class="metric-card">
-                <span class="metric-card__label">Cache Source</span>
-                <strong class="metric-card__value metric-card__value--small" id="metric-from-cache">No</strong>
-                <p class="metric-card__hint">Shows whether Django served the result from cache.</p>
+            <article class="kpi-card">
+                <span class="kpi-card__label">مناطق حرجة</span>
+                <strong class="kpi-card__value" id="metric-critical-areas">0</strong>
+                <p class="kpi-card__hint">عدد المناطق التي تتطلب تدخلًا سريعًا.</p>
+            </article>
+
+            <article class="kpi-card">
+                <span class="kpi-card__label">مستوى خطر التوقع</span>
+                <strong class="kpi-card__value" id="metric-prediction-risk">-</strong>
+                <p class="kpi-card__hint">يتحدث بعد توليد توصيات الذكاء الاصطناعي.</p>
+            </article>
+
+            <article class="kpi-card">
+                <span class="kpi-card__label">مصدر التوصيات</span>
+                <strong class="kpi-card__value" id="metric-prediction-source">-</strong>
+                <p class="kpi-card__hint">يوضح ما إذا كانت النتيجة من Ollama أو من fallback.</p>
             </article>
         </section>
 
-        <section class="heatmap-secondary">
-            <section class="heatmap-panel heatmap-panel--compact">
-                <div class="panel-heading">
+        <section class="heatmap-layout" id="heatmap-results">
+            <section class="heatmap-panel heatmap-panel--map">
+                <div class="panel-heading panel-heading--map">
                     <div>
-                        <h2>Selected Cell</h2>
-                        <p>Click any cell to inspect its coordinates and intensity.</p>
+                        <h2>الخريطة الحرارية</h2>
+                        <p>الخريطة تعرض تركّز المخالفات بصريًا مع الإبقاء على أدوات التحكم الحالية.</p>
+                    </div>
+                    <div class="heatmap-legend">
+                        <span>منخفض</span>
+                        <div class="heatmap-legend__bar"></div>
+                        <span>عالي</span>
                     </div>
                 </div>
 
-                <div class="details-card">
-                    <div class="details-card__row"><span>Area</span><strong id="detail-area">-</strong></div>
-                    <div class="details-card__row"><span>Cell ID</span><strong id="detail-cell-id">-</strong></div>
-                    <div class="details-card__row"><span>Latitude</span><strong id="detail-lat">-</strong></div>
-                    <div class="details-card__row"><span>Longitude</span><strong id="detail-lng">-</strong></div>
-                    <div class="details-card__row"><span>Intensity</span><strong id="detail-intensity">-</strong></div>
-                </div>
-            </section>
-
-            <section class="heatmap-panel heatmap-panel--compact">
-                <div class="panel-heading">
-                    <div>
-                        <h2>Top Ranking</h2>
-                        <p>Hotspots returned by the ranking payload.</p>
+                
+                <div id="heatmap-stage" class="heatmap-stage">
+                    <div id="heatmap-map" class="heatmap-map"></div>
+                    <div id="heatmap-feedback" class="heatmap-empty heatmap-empty--overlay">
+                        <div class="heatmap-empty__icon">!</div>
+                        <h2>لا توجد نتيجة بعد</h2>
+                        <p>ابدأ بتوليد الخريطة الحرارية لعرض مناطق الخطورة والاتجاهات.</p>
                     </div>
                 </div>
-                <div id="ranking-list" class="hotspot-list">
-                    <div class="empty-state">Ranking data will appear here.</div>
+            </section>
+
+            <aside class="heatmap-stack">
+                <section class="heatmap-panel">
+                    <div class="panel-heading panel-heading--compact">
+                        <div>
+                            <h2>المناطق ذات الأولوية</h2>
+                            <p>أهم المناطق التي تستحق تركيز الدوريات والضبط المروري.</p>
+                        </div>
+                    </div>
+                    <div id="ranking-list" class="priority-list">
+                        <div class="empty-state">ستظهر هنا قائمة مناطق الأولوية بعد اكتمال التحليل.</div>
+                    </div>
+                </section>
+
+                <section class="heatmap-panel">
+                    <div class="panel-heading panel-heading--compact">
+                        <div>
+                            <h2>المنطقة المحددة</h2>
+                            <p>تفاصيل سريعة عند الضغط على أي منطقة في الخريطة.</p>
+                        </div>
+                    </div>
+
+                    <div class="selected-area-card">
+                        <div class="selected-area-card__row">
+                            <span>المنطقة</span>
+                            <strong id="detail-area">-</strong>
+                        </div>
+                        <div class="selected-area-card__row">
+                            <span>شدة الخطورة</span>
+                            <strong id="detail-intensity">-</strong>
+                        </div>
+                        <div class="selected-area-card__row">
+                            <span>مستوى الخطر</span>
+                            <strong id="detail-risk">-</strong>
+                        </div>
+                    </div>
+
+                    <details class="technical-details">
+                        <summary>تفاصيل تقنية</summary>
+                        <div class="technical-details__grid">
+                            <div><span>معرف العملية</span><strong id="metric-job-id">لم يبدأ</strong></div>
+                            <div><span>معرف الخلية</span><strong id="detail-cell-id">-</strong></div>
+                            <div><span>خط العرض</span><strong id="detail-lat">-</strong></div>
+                            <div><span>خط الطول</span><strong id="detail-lng">-</strong></div>
+                        </div>
+                    </details>
+                </section>
+            </aside>
+        </section>
+
+        <section class="heatmap-secondary-grid">
+            <section class="heatmap-panel prediction-panel is-hidden" id="prediction-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>توصيات  للدوريات</h2>
+                        <p>ملخص تنفيذي وإجراءات تشغيلية موجهة لمدير الشرطة.</p>
+                    </div>
+                    <div class="status-inline status-inline--soft">
+                        <span class="status-inline__label">مصدر التوصيات</span>
+                        <strong id="prediction-source-badge">-</strong>
+                    </div>
+                </div>
+
+                <div class="executive-summary">
+                    <div class="executive-summary__meta">
+                        <span>الملخص التنفيذي</span>
+                        <strong id="prediction-summary">-</strong>
+                    </div>
+                    <div class="executive-summary__job">
+                        <span>معرف المهمة</span>
+                        <strong id="prediction-job-id">-</strong>
+                    </div>
+                    <div class="executive-summary__job">
+                        <span>حالة التوقع</span>
+                        <strong id="prediction-status">-</strong>
+                    </div>
+                </div>
+
+                <div class="recommendations-block">
+                    <h3>المناطق المتوقع ارتفاع مخاطرها</h3>
+                    <div id="prediction-hotspots-list" class="priority-list">
+                        <div class="empty-state">ستظهر هنا المناطق المتوقعة بعد توليد التوصيات.</div>
+                    </div>
+                </div>
+
+                <div class="recommendations-block">
+                    <h3>الإجراءات المقترحة</h3>
+                    <div id="prediction-recommendations-list" class="recommendation-list">
+                        <div class="empty-state">ستظهر هنا توصيات توزيع الدوريات بعد توليدها.</div>
+                    </div>
+                </div>
+
+                <div id="prediction-limitations-list" class="limitations-list is-hidden">
+                    <div class="empty-state">ستظهر هنا الملاحظات عند الحاجة.</div>
                 </div>
             </section>
 
-            <section class="heatmap-panel heatmap-panel--compact">
+            <section class="heatmap-panel">
                 <div class="panel-heading">
                     <div>
-                        <h2>Trend</h2>
-                        <p>Cells with a meaningful increase or decrease compared with the previous period.</p>
+                        <h2>اتجاه المخالفات مقارنة بالفترة السابقة</h2>
+                        <p>عرض موجز للتغير في المناطق ذات التأثير الأعلى.</p>
                     </div>
                 </div>
                 <div id="trend-list" class="trend-list">
-                    <div class="empty-state">Enable trend analysis to compare this period with the previous one.</div>
-                </div>
-            </section>
-
-            <section class="heatmap-panel heatmap-panel--compact">
-                <div class="panel-heading">
-                    <div>
-                        <h2>Job Timeline</h2>
-                        <p>Current lifecycle and response details from the queue.</p>
-                    </div>
-                </div>
-
-                <div class="details-card">
-                    <div class="details-card__row"><span>Status</span><strong id="timeline-status">Idle</strong></div>
-                    <div class="details-card__row"><span>Requested City</span><strong id="timeline-city">-</strong></div>
-                    <div class="details-card__row"><span>Date Range</span><strong id="timeline-range">-</strong></div>
-                    <div class="details-card__row"><span>Time Bucket</span><strong id="timeline-time-bucket">-</strong></div>
-                    <div class="details-card__row"><span>Error</span><strong id="timeline-error">-</strong></div>
+                    <div class="empty-state">ستظهر الاتجاهات هنا بعد تشغيل التحليل المقارن.</div>
                 </div>
             </section>
         </section>

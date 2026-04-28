@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Citizen\ReportController as CitizenReportController;
+use App\Http\Controllers\PoliceManager\HeatmapController as PoliceManagerHeatmapController;
 use App\Http\Controllers\PoliceOfficer\AuthController;
 use App\Http\Controllers\PoliceOfficer\CityController;
 use App\Http\Controllers\PoliceOfficer\DispatchController;
@@ -56,3 +57,4 @@ Route::post('/officers/assignments/{assignment}/complete', [DispatchController::
 Route::get('/ai_cities', [CityController::class, 'index']);
 Route::get('/ai_violation-types', [ViolationTypeController::class, 'index']);
 Route::get('/ai_violations', [ViolationController::class, 'aiIndex']);
+Route::get('/heatmap-predictions/{request_id}', [PoliceManagerHeatmapController::class, 'predictionStatus']);

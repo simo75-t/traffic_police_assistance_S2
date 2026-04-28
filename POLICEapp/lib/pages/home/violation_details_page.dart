@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/police_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/violation.dart';
 import '../../services/violation_pdf_service.dart';
 import '../../utils/data_utils.dart';
+import '../../widgets/app_button.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/section_header.dart';
 import 'violation_pdf_preview_page.dart';
 
 class ViolationDetailsPage extends StatefulWidget {
-  final Violation violation;
-
   const ViolationDetailsPage({super.key, required this.violation});
+
+  final Violation violation;
 
   @override
   State<ViolationDetailsPage> createState() => _ViolationDetailsPageState();
@@ -19,37 +24,51 @@ class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
   bool _pdfLoading = false;
 
   String _formatDate(String? occurredAt, String? createdAt) {
+    final l10n = AppLocalizations.of(context);
     final dt = AppDateUtils.violationDate(
       occurredAt: occurredAt,
       createdAt: createdAt,
     );
 
-    if (dt == null) return '—';
+    if (dt == null) return l10n.detailsEmptyValue;
 
     final local = dt.toLocal();
-    return DateFormat('yyyy-MM-dd – HH:mm').format(local);
+    return DateFormat('yyyy-MM-dd - HH:mm').format(local);
   }
 
   Widget infoRow(IconData icon, String label, dynamic value) {
+    final l10n = AppLocalizations.of(context);
     final text = (value == null || value.toString().trim().isEmpty)
-        ? "—"
+        ? l10n.detailsEmptyValue
         : value.toString();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.blueAccent, size: 22),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: PoliceTheme.secondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: PoliceTheme.secondary, size: 20),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(label, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 4),
                 Text(
                   text,
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: PoliceTheme.textPrimary,
+                      ),
+                  textAlign: l10n.startTextAlign,
                 ),
               ],
             ),
@@ -89,8 +108,9 @@ class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
       );
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to prepare PDF: $e')),
+        SnackBar(content: Text(l10n.failedToPreparePdf('$e'))),
       );
     } finally {
       if (mounted) {
@@ -101,15 +121,13 @@ class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final violation = widget.violation;
-    final plate = violation.plateNumber ?? "No Plate";
+    final plate = violation.plateNumber ?? l10n.noPlate;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF050814),
       appBar: AppBar(
-        title: const Text("Violation Details"),
-        backgroundColor: const Color(0xFF050814),
-        elevation: 0,
+        title: Text(l10n.detailsPageTitle),
         actions: [
           IconButton(
             onPressed: _pdfLoading ? null : _openPdf,
@@ -120,101 +138,164 @@ class _ViolationDetailsPageState extends State<ViolationDetailsPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.picture_as_pdf_outlined),
-            tooltip: 'Open PDF',
+            tooltip: l10n.openPdf,
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(22),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF101424),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.local_police, color: Colors.amber, size: 30),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      plate,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppCard(
+              padding: EdgeInsets.zero,
+              backgroundColor: PoliceTheme.primary,
+              borderColor: PoliceTheme.primary,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: const LinearGradient(
+                    colors: [PoliceTheme.primary, PoliceTheme.secondary],
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.local_police_outlined,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            plate,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 16),
+                    AppButton(
+                      label: _pdfLoading
+                          ? l10n.preparingPdf
+                          : l10n.detailsOpenViolationPdf,
+                      onPressed: _pdfLoading ? null : _openPdf,
+                      icon: Icons.picture_as_pdf_outlined,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionHeader(
+                    title: l10n.detailsVehicleInfoTitle,
+                    subtitle: l10n.detailsVehicleInfoSubtitle,
+                  ),
+                  const SizedBox(height: 8),
+                  infoRow(
+                    Icons.directions_car_outlined,
+                    l10n.detailsPlate,
+                    violation.plateNumber,
+                  ),
+                  infoRow(
+                    Icons.person_outline,
+                    l10n.detailsOwner,
+                    violation.ownerName,
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _pdfLoading ? null : _openPdf,
-                  icon: const Icon(Icons.picture_as_pdf),
-                  label: Text(
-                      _pdfLoading ? 'Preparing PDF...' : 'Open Violation PDF'),
-                ),
+            ),
+            const SizedBox(height: 16),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionHeader(
+                    title: l10n.detailsLocationTitle,
+                    subtitle: l10n.detailsLocationSubtitle,
+                  ),
+                  const SizedBox(height: 8),
+                  infoRow(
+                    Icons.location_city_outlined,
+                    l10n.detailsCity,
+                    violation.locationCityName,
+                  ),
+                  infoRow(
+                    Icons.map_outlined,
+                    l10n.detailsStreet,
+                    violation.locationStreetName,
+                  ),
+                  infoRow(
+                    Icons.place_outlined,
+                    l10n.detailsLandmark,
+                    violation.locationLandmark,
+                  ),
+                  infoRow(
+                    Icons.home_outlined,
+                    l10n.detailsAddress,
+                    violation.locationAddress,
+                  ),
+                  infoRow(
+                    Icons.pin_drop_outlined,
+                    l10n.detailsLatitude,
+                    violation.locationLatitude,
+                  ),
+                  infoRow(
+                    Icons.pin_drop_outlined,
+                    l10n.detailsLongitude,
+                    violation.locationLongitude,
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              const Divider(color: Colors.white12),
-              Text(
-                "Vehicle Information",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.blue.shade200,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            const SizedBox(height: 16),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionHeader(
+                    title: l10n.detailsViolationTitle,
+                    subtitle: l10n.detailsViolationSubtitle,
+                  ),
+                  const SizedBox(height: 8),
+                  infoRow(
+                    Icons.warning_amber_outlined,
+                    l10n.detailsType,
+                    violation.violationType?['name'],
+                  ),
+                  infoRow(
+                    Icons.payments_outlined,
+                    l10n.detailsFineAmount,
+                    violation.fineAmount?.toString(),
+                  ),
+                  infoRow(
+                    Icons.notes_outlined,
+                    l10n.detailsDescription,
+                    violation.description,
+                  ),
+                  infoRow(
+                    Icons.calendar_today_outlined,
+                    l10n.detailsDate,
+                    _formatDate(violation.occurredAt, violation.createdAt),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              infoRow(Icons.directions_car, "Plate", violation.plateNumber),
-              infoRow(Icons.person, "Owner", violation.ownerName),
-              const SizedBox(height: 18),
-              const Divider(color: Colors.white12),
-              Text(
-                "Location",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.blue.shade200,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              infoRow(Icons.location_city, "City", violation.locationCityName),
-              infoRow(Icons.map, "Street", violation.locationStreetName),
-              infoRow(Icons.place, "Landmark", violation.locationLandmark),
-              infoRow(
-                  Icons.home_outlined, "Address", violation.locationAddress),
-              infoRow(Icons.pin_drop, "Latitude", violation.locationLatitude),
-              infoRow(Icons.pin_drop, "Longitude", violation.locationLongitude),
-              const SizedBox(height: 18),
-              const Divider(color: Colors.white12),
-              Text(
-                "Violation Details",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.blue.shade200,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              infoRow(Icons.warning, "Type", violation.violationType?['name']),
-              infoRow(
-                  Icons.money, "Fine Amount", violation.fineAmount?.toString()),
-              infoRow(Icons.description, "Description", violation.description),
-              infoRow(
-                Icons.calendar_today,
-                "Date",
-                _formatDate(violation.occurredAt, violation.createdAt),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

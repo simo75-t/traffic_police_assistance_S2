@@ -72,13 +72,16 @@ class ViolationPdfService {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.fromLTRB(12, 12, 12, 12),
+        margin: const pw.EdgeInsets.all(12),
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(
           base: _regularFont!,
           bold: _boldFont!,
         ),
-        build: (_) => _buildSheet(violation, officerName),
+        build: (_) => pw.Directionality(
+          textDirection: pw.TextDirection.rtl,
+          child: _buildSheet(violation, officerName),
+        ),
       ),
     );
 
@@ -93,9 +96,9 @@ class ViolationPdfService {
           flex: 4,
           child: _buildMainSlip(violation, officerName),
         ),
-        pw.Container(width: 14),
+        pw.SizedBox(width: 14),
         pw.Container(width: 1, color: PdfColors.grey700),
-        pw.Container(width: 14),
+        pw.SizedBox(width: 14),
         pw.Expanded(
           flex: 1,
           child: _buildStubSlip(violation, officerName),
@@ -105,18 +108,10 @@ class ViolationPdfService {
   }
 
   static pw.Widget _buildMainSlip(Violation violation, String officerName) {
-    final plate = _pick([
-      violation.plateNumber,
-    ]);
-    final owner = _pick([
-      violation.ownerName,
-    ]);
-    final model = _pick([
-      violation.vehicleModelName,
-    ]);
-    final color = _pick([
-      violation.vehicleColorName,
-    ]);
+    final plate = _pick([violation.plateNumber]);
+    final owner = _pick([violation.ownerName]);
+    final model = _pick([violation.vehicleModelName]);
+    final color = _pick([violation.vehicleColorName]);
     final city = _pick([violation.locationCityName]);
     final street = _pick([violation.locationStreetName]);
     final landmark = _pick([violation.locationLandmark]);
@@ -138,50 +133,41 @@ class ViolationPdfService {
         children: [
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
+              _rtlText(
                 'قيادة شرطة المرور',
-                style: pw.TextStyle(
-                  fontSize: 16,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+                style: _textStyle(size: 17, bold: true),
               ),
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
-                  pw.Text(
+                  _rtlText(
                     'ضبط مخالفة سير',
-                    style: pw.TextStyle(
-                      fontSize: 24,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
+                    style: _textStyle(size: 24, bold: true, lineSpacing: 3),
                   ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    'رقم ${violation.id}',
-                    style: pw.TextStyle(
-                      fontSize: 19,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
+                  pw.SizedBox(height: 4),
+                  _rtlText(
+                    'الرقم ${violation.id}',
+                    style: _textStyle(size: 18, bold: true),
                   ),
                 ],
               ),
             ],
           ),
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: 14),
           _formLine(
             'في هذا اليوم',
             createdAt,
-            'وبناءً على الضبط المنظم بحق المركبة ذات الرقم',
+            'تم تنظيم الضبط بحق المركبة ذات الرقم',
             plate,
           ),
           _formLine('اسم المالك', owner, 'نوع المركبة', model),
           _formLine('لون المركبة', color, 'نوع المخالفة', violationType),
           _formLine('قيمة الغرامة', fineAmount, 'المحافظة', city),
-          _formLine('الشارع', street, 'أقرب دلالة', landmark),
+          _formLine('الشارع', street, 'أقرب معلم', landmark),
           _singleLine('العنوان التفصيلي', address),
-          _singleLine(
-              'الإحداثيات', 'خط العرض $latitude    خط الطول $longitude'),
+          _singleLine('الإحداثيات', 'خط العرض $latitude    خط الطول $longitude'),
           pw.SizedBox(height: 10),
           _boxedText(
             label: 'وصف المخالفة',
@@ -189,10 +175,9 @@ class ViolationPdfService {
             minHeight: 88,
           ),
           pw.SizedBox(height: 12),
-          pw.Text(
-            'لذلك نظمنا هذا الضبط استنادًا إلى البيانات المدخلة في النظام، وبعد الاطلاع على الوقائع المذكورة أعلاه.',
-            textAlign: pw.TextAlign.right,
-            style: const pw.TextStyle(fontSize: 13),
+          _rtlText(
+            'لذلك نظمنا هذا الضبط استناداً إلى البيانات المدخلة في النظام، وبعد الاطلاع على الوقائع المذكورة أعلاه.',
+            style: _textStyle(size: 13, lineSpacing: 2.4, height: 1.3),
           ),
           pw.Spacer(),
           pw.Row(
@@ -210,12 +195,8 @@ class ViolationPdfService {
   }
 
   static pw.Widget _buildStubSlip(Violation violation, String officerName) {
-    final plate = _pick([
-      violation.plateNumber,
-    ]);
-    final owner = _pick([
-      violation.ownerName,
-    ]);
+    final plate = _pick([violation.plateNumber]);
+    final owner = _pick([violation.ownerName]);
     final violationType = _pick([violation.violationType?['name']]);
     final fineAmount = _pick([violation.fineAmount]);
     final createdAt = _formatDate(violation.occurredAt, violation.createdAt);
@@ -230,31 +211,19 @@ class ViolationPdfService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          pw.Text(
+          _rtlText(
             'قيادة شرطة المرور',
-            textAlign: pw.TextAlign.right,
-            style: pw.TextStyle(
-              fontSize: 13,
-              fontWeight: pw.FontWeight.bold,
-            ),
+            style: _textStyle(size: 13, bold: true),
           ),
           pw.SizedBox(height: 4),
-          pw.Text(
+          _rtlText(
             'ضبط مخالفة سير',
-            textAlign: pw.TextAlign.right,
-            style: pw.TextStyle(
-              fontSize: 18,
-              fontWeight: pw.FontWeight.bold,
-            ),
+            style: _textStyle(size: 18, bold: true, lineSpacing: 2.6),
           ),
           pw.SizedBox(height: 4),
-          pw.Text(
-            'رقم ${violation.id}',
-            textAlign: pw.TextAlign.right,
-            style: pw.TextStyle(
-              fontSize: 15,
-              fontWeight: pw.FontWeight.bold,
-            ),
+          _rtlText(
+            'الرقم ${violation.id}',
+            style: _textStyle(size: 15, bold: true),
           ),
           pw.SizedBox(height: 12),
           _singleLine('اسم المخالف', owner),
@@ -302,28 +271,21 @@ class ViolationPdfService {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        pw.Text(
+        _rtlText(
           '$label: ',
-          style: pw.TextStyle(
-            fontSize: 13,
-            fontWeight: pw.FontWeight.bold,
-          ),
+          style: _textStyle(size: 13, bold: true),
         ),
         pw.Expanded(
           child: pw.Container(
-            padding: const pw.EdgeInsets.only(bottom: 2),
+            padding: const pw.EdgeInsets.only(bottom: 3),
             decoration: const pw.BoxDecoration(
               border: pw.Border(
-                bottom: pw.BorderSide(
-                  color: PdfColors.black,
-                  width: 0.8,
-                ),
+                bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
               ),
             ),
-            child: pw.Text(
+            child: _rtlText(
               value,
-              textAlign: pw.TextAlign.right,
-              style: const pw.TextStyle(fontSize: 13),
+              style: _textStyle(size: 13, lineSpacing: 2.2, height: 1.25),
             ),
           ),
         ),
@@ -339,12 +301,9 @@ class ViolationPdfService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        pw.Text(
+        _rtlText(
           '$label:',
-          style: pw.TextStyle(
-            fontSize: 13,
-            fontWeight: pw.FontWeight.bold,
-          ),
+          style: _textStyle(size: 13, bold: true),
         ),
         pw.SizedBox(height: 4),
         pw.Container(
@@ -354,10 +313,9 @@ class ViolationPdfService {
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.black, width: 0.8),
           ),
-          child: pw.Text(
+          child: _rtlText(
             value,
-            textAlign: pw.TextAlign.right,
-            style: const pw.TextStyle(fontSize: 13),
+            style: _textStyle(size: 13, lineSpacing: 2.4, height: 1.3),
           ),
         ),
       ],
@@ -368,32 +326,52 @@ class ViolationPdfService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        pw.Text(
+        _rtlText(
           label,
-          style: pw.TextStyle(
-            fontSize: 13,
-            fontWeight: pw.FontWeight.bold,
-          ),
+          style: _textStyle(size: 13, bold: true),
         ),
         pw.SizedBox(height: 10),
         pw.Container(
           width: double.infinity,
-          padding: const pw.EdgeInsets.only(bottom: 2),
+          padding: const pw.EdgeInsets.only(bottom: 3),
           decoration: const pw.BoxDecoration(
             border: pw.Border(
-              bottom: pw.BorderSide(
-                color: PdfColors.black,
-                width: 0.8,
-              ),
+              bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
             ),
           ),
-          child: pw.Text(
+          child: _rtlText(
             value,
-            textAlign: pw.TextAlign.right,
-            style: const pw.TextStyle(fontSize: 13),
+            style: _textStyle(size: 13, lineSpacing: 2.2, height: 1.25),
           ),
         ),
       ],
+    );
+  }
+
+  static pw.Widget _rtlText(
+    String text, {
+    required pw.TextStyle style,
+  }) {
+    return pw.Text(
+      text,
+      textAlign: pw.TextAlign.right,
+      textDirection: pw.TextDirection.rtl,
+      style: style,
+    );
+  }
+
+  static pw.TextStyle _textStyle({
+    required double size,
+    bool bold = false,
+    double lineSpacing = 2,
+    double height = 1.2,
+  }) {
+    return pw.TextStyle(
+      font: bold ? _boldFont : _regularFont,
+      fontSize: size,
+      fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+      lineSpacing: lineSpacing,
+      height: height,
     );
   }
 

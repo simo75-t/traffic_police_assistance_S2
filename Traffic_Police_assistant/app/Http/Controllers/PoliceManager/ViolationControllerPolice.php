@@ -24,8 +24,10 @@ class ViolationControllerPolice extends Controller
         $validated = $request->validated();
         $searchType = (string) ($validated['search_type'] ?? '');
         $searchValue = trim((string) ($validated['search'] ?? ''));
-        $violations = $this->violationService->getFilteredViolations($validated);
-        $violationRows = ViolationListResource::collection($violations)->resolve();
+        $violationRows = $this->violationService
+            ->getFilteredViolations($validated)
+            ->withQueryString()
+            ->through(fn ($violation) => (new ViolationListResource($violation))->resolve());
 
         return view('policemanager.violations.index', [
             'violations' => $violationRows,

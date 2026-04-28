@@ -27,4 +27,14 @@ class GenerateHeatmapRequest extends FormRequest
             'comparison_mode' => ['nullable', 'string', Rule::in(['', 'week_over_week', 'month_over_month'])],
         ];
     }
+
+    public function hasMissingComparisonModeForTrend(): bool
+    {
+        $includeTrend = (bool) ($this->validated()['include_trend'] ?? false);
+        $comparisonMode = $includeTrend
+            ? (string) ($this->validated()['comparison_mode'] ?? '')
+            : '';
+
+        return $includeTrend && $comparisonMode === '';
+    }
 }

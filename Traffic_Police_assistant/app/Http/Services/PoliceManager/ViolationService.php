@@ -8,8 +8,8 @@ use App\Models\ViolationType;
 use App\Models\Violation;
 use App\Http\Services\Dispatch\DispatchService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class ViolationService
 {
@@ -19,9 +19,9 @@ class ViolationService
 
     /**
      * @param array{search_type?: string|null, search?: string|null} $filters
-     * @return Collection<int, \App\Models\Violation>
+     * @return LengthAwarePaginator<int, \App\Models\Violation>
      */
-    public function getFilteredViolations(array $filters): Collection
+    public function getFilteredViolations(array $filters): LengthAwarePaginator
     {
         $searchType = (string) ($filters['search_type'] ?? '');
         $searchValue = trim((string) ($filters['search'] ?? ''));
@@ -44,7 +44,7 @@ class ViolationService
                 };
             })
             ->latest('occurred_at')
-            ->get();
+            ->paginate(20);
     }
 
     /**

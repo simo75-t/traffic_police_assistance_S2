@@ -1,8 +1,8 @@
 @extends('policemanager.layouts.app')
 
-@section('title', 'Reports Map')
-@section('page_title', 'Citizen Reports Map')
-@section('page_description', 'Track citizen reports by location, current status, and dispatch state.')
+@section('title', 'خريطة البلاغات')
+@section('page_title', 'خريطة بلاغات المواطنين')
+@section('page_description', 'متابعة بلاغات المواطنين حسب الموقع، الحالة الحالية، وحالة التوزيع.')
 
 @section('head')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -146,16 +146,16 @@
 @section('content')
     @php
         $statusLabels = [
-            'submitted' => 'Submitted',
-            'dispatched' => 'Dispatched',
-            'in_progress' => 'In Progress',
-            'closed' => 'Closed',
-            'unknown' => 'Unknown',
+            'submitted' => 'مُقدّم',
+            'dispatched' => 'تم التوجيه',
+            'in_progress' => 'قيد المعالجة',
+            'closed' => 'مغلق',
+            'unknown' => 'غير معروف',
         ];
 
         $assignmentStateLabels = [
-            'assigned' => 'Assigned',
-            'unassigned' => 'Unassigned',
+            'assigned' => 'تم التعيين',
+            'unassigned' => 'غير معيّن',
         ];
 
     @endphp
@@ -163,32 +163,32 @@
     <section class="stack">
         <div class="map-meta-grid">
             <article class="map-meta-card">
-                <span class="map-card-label">Visible Reports</span>
+                <span class="map-card-label">البلاغات الظاهرة</span>
                 <strong>{{ $summary['totalReports'] }}</strong>
             </article>
             <article class="map-meta-card">
-                <span class="map-card-label">Open Reports</span>
+                <span class="map-card-label">البلاغات المفتوحة</span>
                 <strong>{{ $summary['pendingReports'] }}</strong>
             </article>
             <article class="map-meta-card">
-                <span class="map-card-label">Assigned Reports</span>
+                <span class="map-card-label">البلاغات المعيّنة</span>
                 <strong>{{ $summary['assignedReports'] }}</strong>
             </article>
             <article class="map-meta-card">
-                <span class="map-card-label">Closed Reports</span>
+                <span class="map-card-label">البلاغات المغلقة</span>
                 <strong>{{ $summary['closedReports'] }}</strong>
             </article>
         </div>
 
         <article class="surface">
             <div class="surface-body">
-                <h3>Filters</h3>
+                <h3>الفلاتر</h3>
                 <form method="GET" action="{{ route('policemanager.violations.map') }}">
                     <div class="map-filters">
                         <div>
-                            <label for="status">Report Status</label>
+                            <label for="status">حالة البلاغ</label>
                             <select id="status" name="status">
-                                <option value="">All statuses</option>
+                                <option value="">كل الحالات</option>
                                 @foreach (['submitted', 'dispatched', 'in_progress', 'closed'] as $statusOption)
                                     <option value="{{ $statusOption }}" @selected(($filters['status'] ?? '') === $statusOption)>
                                         {{ $statusLabels[$statusOption] }}
@@ -197,20 +197,20 @@
                             </select>
                         </div>
                         <div>
-                            <label for="assignment">Dispatch State</label>
+                            <label for="assignment">حالة التوزيع</label>
                             <select id="assignment" name="assignment">
-                                <option value="">All dispatch states</option>
-                                <option value="assigned" @selected(($filters['assignment'] ?? '') === 'assigned')>Assigned</option>
-                                <option value="unassigned" @selected(($filters['assignment'] ?? '') === 'unassigned')>Unassigned</option>
+                                <option value="">كل حالات التوزيع</option>
+                                <option value="assigned" @selected(($filters['assignment'] ?? '') === 'assigned')>تم التعيين</option>
+                                <option value="unassigned" @selected(($filters['assignment'] ?? '') === 'unassigned')>غير معيّن</option>
                             </select>
                         </div>
                         <div>
-                            <label for="city">City</label>
-                            <input id="city" name="city" type="text" value="{{ $filters['city'] ?? '' }}" placeholder="Damascus" />
+                            <label for="city">المدينة</label>
+                            <input id="city" name="city" type="text" value="{{ $filters['city'] ?? '' }}" placeholder="دمشق" />
                         </div>
                         <div class="map-filters-actions">
-                            <button class="btn btn-primary" type="submit">Apply</button>
-                            <a class="btn btn-secondary" href="{{ route('policemanager.violations.map') }}">Reset</a>
+                            <button class="btn btn-primary" type="submit">تطبيق</button>
+                            <a class="btn btn-secondary" href="{{ route('policemanager.violations.map') }}">إعادة ضبط</a>
                         </div>
                     </div>
                 </form>
@@ -221,38 +221,38 @@
 
         <article class="surface">
             <div class="surface-body">
-                <h3>Reports Map</h3>
-                <p>Every marker represents a citizen report, colored by its current status.</p>
+                <h3>خريطة البلاغات</h3>
+                <p>كل نقطة تمثل بلاغ مواطن، ويتم تلوينها حسب حالتها الحالية.</p>
                 <div id="reports-map" class="map-panel"></div>
             </div>
         </article>
 
         <article class="surface">
             <div class="surface-body">
-                <h3>Report Details</h3>
+                <h3>تفاصيل البلاغات</h3>
                 <div class="report-table-wrapper">
                     <table class="report-table">
                         <thead>
                             <tr>
-                                <th>Title</th>
-                                <th>Priority</th>
-                                <th>Reporter</th>
-                                <th>Location</th>
-                                <th>Report Status</th>
-                                <th>Submitted At</th>
-                                <th>Closed At</th>
+                                <th>العنوان</th>
+                                <th>الأولوية</th>
+                                <th>المبلّغ</th>
+                                <th>الموقع</th>
+                                <th>حالة البلاغ</th>
+                                <th>تاريخ الإرسال</th>
+                                <th>تاريخ الإغلاق</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($reportsMap as $report)
                                 <tr>
-                                    <td>{{ $report['title'] ?: 'Untitled report' }}</td>
+                                    <td>{{ $report['title'] ?: 'بلاغ بدون عنوان' }}</td>
                                     <td>{{ $report['priority'] ?: '-' }}</td>
                                     <td>{{ $report['reporter_name'] ?: '-' }}</td>
                                     <td>{{ $report['location_summary'] ?: '-' }}</td>
                                     <td>
                                         <span class="report-status-chip status-{{ \Illuminate\Support\Str::slug($report['status'] ?? 'unknown', '-') }}">
-                                            {{ $statusLabels[$report['status'] ?? 'unknown'] ?? 'Unknown' }}
+                                            {{ $statusLabels[$report['status'] ?? 'unknown'] ?? 'غير معروف' }}
                                         </span>
                                     </td>
                                     <td>{{ $report['submitted_at'] ?: '-' }}</td>
@@ -260,7 +260,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="empty-state">No reports match the current filters.</td>
+                                    <td colspan="7" class="empty-state">لا توجد بلاغات مطابقة للفلاتر الحالية.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -271,28 +271,28 @@
 
         <article class="surface">
             <div class="surface-body">
-                <h3>Dispatch Overview</h3>
+                <h3>نظرة عامة على التوزيع</h3>
                 <div class="report-table-wrapper">
                     <table class="report-table">
                         <thead>
                             <tr>
-                                <th>Title</th>
-                                <th>Officer</th>
-                                <th>Dispatch State</th>
-                                <th>Location</th>
+                                <th>العنوان</th>
+                                <th>العنصر المكلف</th>
+                                <th>حالة التوزيع</th>
+                                <th>الموقع</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($reportsMap as $report)
                                 <tr>
-                                    <td>{{ $report['title'] ?: 'Untitled report' }}</td>
-                                    <td>{{ $report['assigned_officer'] ?: 'Unassigned' }}</td>
-                                    <td>{{ $assignmentStateLabels[$report['assignment_state'] ?? 'unassigned'] ?? 'Unassigned' }}</td>
+                                    <td>{{ $report['title'] ?: 'بلاغ بدون عنوان' }}</td>
+                                    <td>{{ $report['assigned_officer'] ?: 'غير معيّن' }}</td>
+                                    <td>{{ $assignmentStateLabels[$report['assignment_state'] ?? 'unassigned'] ?? 'غير معيّن' }}</td>
                                     <td>{{ $report['location_summary'] ?: '-' }}</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="empty-state">No reports match the current filters.</td>
+                                    <td colspan="4" class="empty-state">لا توجد بلاغات مطابقة للفلاتر الحالية.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -317,18 +317,18 @@
         };
 
         const statusLabels = {
-            submitted: 'Submitted',
-            dispatched: 'Dispatched',
-            in_progress: 'In Progress',
-            closed: 'Closed',
-            unknown: 'Unknown',
+            submitted: 'مُقدّم',
+            dispatched: 'تم التوجيه',
+            in_progress: 'قيد المعالجة',
+            closed: 'مغلق',
+            unknown: 'غير معروف',
         };
 
         const reportStatusKeys = ['submitted', 'dispatched', 'in_progress', 'closed'];
 
         const assignmentStateLabels = {
-            assigned: 'Assigned',
-            unassigned: 'Unassigned',
+            assigned: 'تم التعيين',
+            unassigned: 'غير معيّن',
         };
 
         const mapContainer = document.getElementById('reports-map');
@@ -382,20 +382,20 @@
                 fillOpacity: 0.9,
             }).addTo(map);
 
-            const title = report.title || 'New Report';
-            const officer = report.assigned_officer || 'Unassigned';
+            const title = report.title || 'بلاغ جديد';
+            const officer = report.assigned_officer || 'غير معيّن';
             const status = statusLabels[reportStatusKey] || reportStatusKey.replace(/_/g, ' ');
-            const assignment = assignmentStateLabels[report.assignment_state || 'unassigned'] || 'Unassigned';
-            const locationText = report.location_summary || report.location.city || 'Unknown location';
+            const assignment = assignmentStateLabels[report.assignment_state || 'unassigned'] || 'غير معيّن';
+            const locationText = report.location_summary || report.location.city || 'موقع غير معروف';
 
             marker.bindPopup(`
                 <div style="font-family: Cairo, sans-serif; line-height:1.45;">
                     <strong>#${report.id} - ${title}</strong>
                     <div style="margin-top:6px; color:#475569;">${locationText}</div>
                     <div style="margin-top:8px; font-size:0.94rem;">
-                        <div><strong>Officer:</strong> ${officer}</div>
-                        <div><strong>Status:</strong> ${status}</div>
-                        <div><strong>Dispatch:</strong> ${assignment}</div>
+                        <div><strong>الشرطي المكلف:</strong> ${officer}</div>
+                        <div><strong>الحالة:</strong> ${status}</div>
+                        <div><strong>التوزيع:</strong> ${assignment}</div>
                     </div>
                 </div>
             `);
@@ -408,7 +408,7 @@
         const legend = L.control({ position: 'bottomright' });
         legend.onAdd = function () {
             const div = L.DomUtil.create('div', 'map-legend');
-            div.innerHTML = '<h4>Report Status</h4>' +
+            div.innerHTML = '<h4>حالة البلاغ</h4>' +
                 reportStatusKeys.map((key) =>
                     `<div class="map-legend-item"><span class="map-legend-swatch" style="background:${statusColors[key]}"></span><span>${statusLabels[key]}</span></div>`
                 ).join('');

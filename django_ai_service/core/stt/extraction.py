@@ -1,15 +1,24 @@
 """STT extraction helpers.
 
-This file handles LM Studio extraction and field repair logic.
+This file handles LLM extraction and field repair logic.
 """
 
 import json
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
 
-from core.stt.config import LMSTUDIO_CHAT, LMSTUDIO_MODEL, LMSTUDIO_TIMEOUT, log
+from core.stt.config import (
+    LLM_CHAT_URL,
+    LLM_PROVIDER,
+    LLM_TIMEOUT,
+    OPENROUTER_API_KEY,
+    OPENROUTER_REFERER,
+    OPENROUTER_TITLE,
+    QWEN_MODEL,
+    log,
+)
 from core.stt.lookups import map_ids
 from core.stt.normalization import (
     best_plate_from_text,
@@ -25,64 +34,148 @@ from core.stt.normalization import (
 )
 
 
-def extract_json_block(s: str) -> str:
-    """Extract the first JSON object block from LM Studio output."""
+EXPECTED_LLM_FIELDS = (
+    "vehicle_plate",
+    "vehicle_owner",
+    "vehicle_model",
+    "vehicle_color",
+    "city_id",
+    "city",
+    "city_name",
+    "street_name",
+    "landmark",
+    "violation_type_id",
+    "violation_type",
+    "violation_type_name",
+    "description",
+    "occurred_at",
+)
+
+
+def first_json_object(s: str) -> str:
+    """Extract the first balanced JSON object from model output."""
     s = (s or "").strip()
+    if not s:
+        return ""
     if s.startswith("```"):
         s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE)
         s = re.sub(r"\s*```$", "", s)
-    match = re.search(r"\{[\s\S]*\}", s)
-    return match.group(0).strip() if match else s
+    start = s.find("{")
+    if start == -1:
+        return ""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(s)):
+        char = s[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return s[start : index + 1].strip()
+
+    return ""
+
+
+def _extract_message_content(data: Dict[str, Any]) -> str:
+    choices = data.get("choices") or []
+    if not choices:
+        return ""
+
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str) and text.strip():
+                    parts.append(text)
+        return "\n".join(parts)
+    return ""
+
+
+def _sanitize_extracted_fields(payload: Dict[str, Any]) -> Dict[str, str]:
+    sanitized: Dict[str, str] = {}
+    for key in EXPECTED_LLM_FIELDS:
+        value = payload.get(key, "")
+        if value is None:
+            sanitized[key] = ""
+        elif isinstance(value, str):
+            sanitized[key] = value.strip()
+        else:
+            sanitized[key] = str(value).strip()
+    return sanitized
 
 
 def lmstudio_extract(stt_text: str) -> Dict[str, Any]:
-    """Ask LM Studio to convert transcript text into a structured JSON object."""
+    """Ask the configured LLM provider to convert transcript text into JSON."""
+    if not OPENROUTER_API_KEY:
+        log.warning("STT semantic extraction skipped: missing OpenRouter/Qwen API key")
+        return {}
+
+    log.info(
+        "STT semantic extraction provider=%s model=%s",
+        LLM_PROVIDER,
+        QWEN_MODEL,
+    )
+
     system_prompt = """
-You extract structured data from Arabic traffic violation speech transcripts for Syrian traffic police.
-Return ONLY one valid JSON object with the exact schema requested.
-Do not write markdown, comments, code fences, or explanatory text.
-If a value is missing, return an empty string for that field.
-Never invent a city, street, plate, or person name that is not supported by the transcript.
+You extract structured data from Arabic traffic violation speech transcripts.
+Return exactly one JSON object only.
+Do not return markdown.
+Do not return prose.
+Do not explain the answer.
+If a field is unknown, return an empty string.
 """.strip()
 
     user_prompt = f"""
 Transcript:
 {stt_text}
 
-Schema:
+Return exactly one JSON object with this schema:
 {{
   "vehicle_plate": "",
   "vehicle_owner": "",
   "vehicle_model": "",
   "vehicle_color": "",
-  "city": "",
+  "city_id": "",
+  "city_name": "",
   "street_name": "",
   "landmark": "",
-  "violation_type": "",
-  "description": ""
+  "violation_type_id": "",
+  "violation_type_name": "",
+  "description": "",
+  "occurred_at": ""
 }}
 
-Extraction rules:
-1. vehicle_plate:
-   - digits only
-   - no spaces, no country code, no extra words
-2. city:
-   - one Syrian city/governorate name only
-   - do not put street names here
-3. street_name:
-   - include the street/road/highway phrase if clearly mentioned
-4. landmark:
-   - nearest landmark or notable place only
-5. violation_type:
-   - very short label in Arabic such as "اصطفاف مزدوج" or "قطع إشارة"
-6. description:
-   - one short Arabic sentence summarizing the violation
-7. Do not mix owner/model/color/location across fields.
-8. If uncertain, leave the field empty.
+Rules:
+1. Output JSON only.
+2. No markdown fences.
+3. No explanatory text before or after JSON.
+4. vehicle_plate must contain digits only.
+5. city_name must contain one city or governorate only.
+6. violation_type_name must contain a short violation label only.
+7. If ids are unknown, keep city_id and violation_type_id as empty strings.
 """.strip()
 
     payload = {
-        "model": LMSTUDIO_MODEL,
+        "model": QWEN_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -90,27 +183,56 @@ Extraction rules:
         "temperature": 0.0,
         "top_p": 1.0,
         "max_tokens": 260,
-        "stream": False,
-        "response_format": {"type": "json_object"},
     }
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    if OPENROUTER_REFERER:
+        headers["HTTP-Referer"] = OPENROUTER_REFERER
+    if OPENROUTER_TITLE:
+        headers["X-Title"] = OPENROUTER_TITLE
+
     try:
-        response = requests.post(LMSTUDIO_CHAT, json=payload, timeout=LMSTUDIO_TIMEOUT)
+        response = requests.post(
+            LLM_CHAT_URL,
+            json=payload,
+            headers=headers,
+            timeout=LLM_TIMEOUT,
+        )
         if not response.ok:
-            log.warning("LM Studio HTTP %s: %s", response.status_code, response.text[:300])
+            log.warning("STT LLM HTTP %s: %s", response.status_code, response.text[:500])
             return {}
+
         data = response.json()
-        content = data["choices"][0]["message"]["content"]
-        cleaned = extract_json_block((content or "").strip())
-        obj = json.loads(cleaned)
-        return obj if isinstance(obj, dict) else {}
+        content = _extract_message_content(data).strip()
+        log.info("STT raw LLM output: %s", content)
+        cleaned = first_json_object(content)
+        if not cleaned:
+            log.warning("STT LLM returned no JSON object")
+            return {}
+        parsed = json.loads(cleaned)
+        if not isinstance(parsed, dict):
+            log.warning("STT LLM output did not parse to a JSON object")
+            return {}
+
+        sanitized = _sanitize_extracted_fields(parsed)
+        log.info("STT parsed JSON fields: %s", sanitized)
+        return sanitized
     except Exception as exc:
-        log.warning("LM Studio extract failed: %r", exc)
+        log.warning("STT semantic extraction failed: %r", exc)
         return {}
 
 
-def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge LM Studio output with rule-based repair and id mapping."""
-    llm = llm if isinstance(llm, dict) else {}
+def finalize_fields(
+    stt_text: str,
+    llm: Dict[str, Any],
+    auth_header: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Merge LLM output with rule-based repair and id mapping."""
+    log.info("STT text: %s", stt_text)
+    llm = _sanitize_extracted_fields(llm) if isinstance(llm, dict) else {}
+
     plate = normalize_plate(llm.get("vehicle_plate", "")) or best_plate_from_text(stt_text)
     owner = clean_owner(llm.get("vehicle_owner", ""))
     model = norm(llm.get("vehicle_model", ""))
@@ -118,7 +240,12 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
     if model and normalize_color(model) and not color:
         color = normalize_color(model)
         model = ""
-    city = normalize_city_name(llm.get("city", "")) or guess_city_from_text(stt_text)
+
+    city = (
+        normalize_city_name(llm.get("city_name", ""))
+        or normalize_city_name(llm.get("city", ""))
+        or guess_city_from_text(stt_text)
+    )
     street = norm(llm.get("street_name", ""))
     if street and not looks_like_street(street):
         street = ""
@@ -127,14 +254,33 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
     if city and looks_like_street(city) and not street:
         street = city
         city = None
+
     landmark = clean_landmark(llm.get("landmark", ""))
-    violation = norm(llm.get("violation_type", "")).replace("اصطفاح", "اصطفاف").replace("إصطفاف", "اصطفاف")
+    violation = (
+        norm(llm.get("violation_type_name", "") or llm.get("violation_type", ""))
+        .replace("ط§طµط·ظپط§ط­", "ط§طµط·ظپط§ظپ")
+        .replace("ط¥طµط·ظپط§ظپ", "ط§طµط·ظپط§ظپ")
+    )
     desc = norm(llm.get("description", ""))
-    city_id, vio_id, city_fixed, vio_fixed = map_ids(city, violation)
+    occurred_at = norm(llm.get("occurred_at", ""))
+
+    city_id, vio_id, city_fixed, vio_fixed = map_ids(
+        city,
+        violation,
+        auth_header=auth_header,
+    )
+    city_id = city_id or llm.get("city_id") or None
+    vio_id = vio_id or llm.get("violation_type_id") or None
+    if city and not city_id:
+        log.warning('STT city mapping failed for "%s"', city)
+    if violation and not vio_id:
+        log.warning('STT violation type mapping failed for "%s"', violation)
+
     if city_fixed:
         city = "دمشق" if city_fixed.strip().lower() in ("ريف دمشق", "ريفدمشق") else city_fixed
     if vio_fixed:
         violation = norm(vio_fixed)
+
     parts = []
     if plate:
         parts.append(f"plate {plate}")
@@ -148,6 +294,7 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
         parts.append(f"landmark {landmark}")
     if violation:
         parts.append(f"violation {violation}")
+
     if desc:
         lower_desc = desc.lower()
         missing_parts = [part for part in parts if part.lower() not in lower_desc]
@@ -155,7 +302,8 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
             desc = f"{desc} | {' | '.join(missing_parts)}"
     else:
         desc = " | ".join(parts) if parts else norm(stt_text)
-    return {
+
+    result = {
         "vehicle_plate": plate or "",
         "vehicle_owner": owner,
         "vehicle_model": model or None,
@@ -167,5 +315,7 @@ def finalize_fields(stt_text: str, llm: Dict[str, Any]) -> Dict[str, Any]:
         "city_name": city,
         "violation_type_name": violation or None,
         "description": desc,
-        "occurred_at": None,
+        "occurred_at": occurred_at or None,
     }
+    log.info("STT finalized fields: %s", result)
+    return result

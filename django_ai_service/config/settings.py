@@ -168,9 +168,32 @@ MONGO_OCR_COLLECTION = os.getenv("MONGO_OCR_COLLECTION", default_settings.MONGO_
 OLLAMA_URL = os.getenv("OLLAMA_URL", default_settings.OLLAMA_URL)
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", default_settings.OLLAMA_MODEL)
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", str(default_settings.OLLAMA_TIMEOUT)))
+OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", str(default_settings.OLLAMA_TIMEOUT_SECONDS)))
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", str(default_settings.OLLAMA_NUM_CTX)))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", str(default_settings.OLLAMA_NUM_PREDICT)))
 OLLAMA_RETRIES = int(os.getenv("OLLAMA_RETRIES", str(default_settings.OLLAMA_RETRIES)))
+HEATMAP_PREDICTION_LLM_PROVIDER = os.getenv(
+    "HEATMAP_PREDICTION_LLM_PROVIDER",
+    default_settings.HEATMAP_PREDICTION_LLM_PROVIDER,
+)
+QWEN_API_KEY = os.getenv("QWEN_API_KEY", default_settings.QWEN_API_KEY)
+QWEN_BASE_URL = os.getenv("QWEN_BASE_URL", default_settings.QWEN_BASE_URL)
+QWEN_MODEL = os.getenv("QWEN_MODEL", default_settings.QWEN_MODEL)
+QWEN_TIMEOUT_SECONDS = int(os.getenv("QWEN_TIMEOUT_SECONDS", str(default_settings.QWEN_TIMEOUT_SECONDS)))
+QWEN_MAX_TOKENS = int(os.getenv("QWEN_MAX_TOKENS", str(default_settings.QWEN_MAX_TOKENS)))
+QWEN_TEMPERATURE = float(os.getenv("QWEN_TEMPERATURE", str(default_settings.QWEN_TEMPERATURE)))
+HEATMAP_PREDICTION_OLLAMA_NUM_PREDICT = int(
+    os.getenv(
+        "HEATMAP_PREDICTION_OLLAMA_NUM_PREDICT",
+        str(default_settings.HEATMAP_PREDICTION_OLLAMA_NUM_PREDICT),
+    )
+)
+HEATMAP_PREDICTION_OLLAMA_RETRIES = int(
+    os.getenv(
+        "HEATMAP_PREDICTION_OLLAMA_RETRIES",
+        str(default_settings.HEATMAP_PREDICTION_OLLAMA_RETRIES),
+    )
+)
 
 HEATMAP_CACHE_TTL_SECONDS = int(os.getenv("HEATMAP_CACHE_TTL_SECONDS", str(default_settings.HEATMAP_CACHE_TTL_SECONDS)))
 HEATMAP_GRID_DEFAULT_METERS = int(os.getenv("HEATMAP_GRID_DEFAULT_METERS", str(default_settings.HEATMAP_GRID_DEFAULT_METERS)))

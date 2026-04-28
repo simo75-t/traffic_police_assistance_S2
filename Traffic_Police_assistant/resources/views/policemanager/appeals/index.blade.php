@@ -11,9 +11,9 @@
     $statusLabels = AppealStatus::labels();
 @endphp
 
-@section('title', 'Appeals')
-@section('page_title', 'Appeals')
-@section('page_description', 'Browse all appeal requests and update their status directly from the list.')
+@section('title', 'الاعتراضات')
+@section('page_title', 'الاعتراضات')
+@section('page_description', 'تصفح جميع طلبات الاعتراض وتحديث حالتها مباشرة من القائمة.')
 
 @section('content')
     <section class="surface">
@@ -22,12 +22,12 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Violation ID</th>
-                            <th>Status</th>
-                            <th>Reason</th>
-                            <th>Created At</th>
-                            <th>Actions</th>
+                            <th>المعرّف</th>
+                            <th>رقم المخالفة</th>
+                            <th>الحالة</th>
+                            <th>السبب</th>
+                            <th>تاريخ الإنشاء</th>
+                            <th>الإجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -44,7 +44,7 @@
                                 <td>{{ $appeal['created_at'] }}</td>
                                 <td>
                                     <div class="stack">
-                                        <a class="btn btn-secondary" href="{{ route('policemanager.appeals.show', $appeal['id']) }}">View</a>
+                                        <a class="btn btn-secondary" href="{{ route('policemanager.appeals.show', $appeal['id']) }}">عرض</a>
 
                                         <form action="{{ route('policemanager.appeals.updateStatus', $appeal['id']) }}" method="POST">
                                             @csrf
@@ -62,7 +62,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="empty-state">There are no appeals to review yet.</td>
+                                <td colspan="6" class="empty-state">لا توجد اعتراضات للمراجعة حالياً.</td>
                             </tr>
                         @endforelse
                     </tbody>

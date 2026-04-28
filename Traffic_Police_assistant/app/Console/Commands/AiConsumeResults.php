@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\AiJob;
+use App\Consumers\AiResultConsumer;
 use Illuminate\Console\Command;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 
@@ -10,6 +10,12 @@ class AiConsumeResults extends Command
 {
     protected $signature = 'ai:consume-results';
     protected $description = 'Consume AI results from RabbitMQ';
+
+    public function __construct(
+        private readonly AiResultConsumer $consumer,
+    ) {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -35,19 +41,7 @@ class AiConsumeResults extends Command
 
         $ch->basic_consume($resultsQueue, '', false, false, false, false, function ($msg) {
             try {
-                $data = json_decode($msg->body, true, 512, JSON_THROW_ON_ERROR);
-
-                $jobId = $data['job_id'] ?? $data['request_id'] ?? null;
-                $job = AiJob::where('job_id', $jobId)->first();
-
-                if ($job) {
-                    $job->status = ($data['status'] === 'success') ? 'success' : 'failed';
-                    $job->result = $data['result'] ?? null;
-                    $job->error = $data['error'] ?? null;
-                    $job->finished_at = now();
-                    $job->save();
-                }
-
+                $this->consumer->consume($msg->body);
                 $msg->ack();
             } catch (\Throwable $e) {
                 logger()->error('AI result consume error', ['err' => $e->getMessage()]);
