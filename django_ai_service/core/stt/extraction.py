@@ -11,12 +11,12 @@ import requests
 
 from core.stt.config import (
     LLM_CHAT_URL,
+    LLM_API_KEY,
+    LLM_MODEL,
     LLM_PROVIDER,
     LLM_TIMEOUT,
-    OPENROUTER_API_KEY,
     OPENROUTER_REFERER,
     OPENROUTER_TITLE,
-    QWEN_MODEL,
     log,
 )
 from core.stt.lookups import map_ids
@@ -125,14 +125,17 @@ def _sanitize_extracted_fields(payload: Dict[str, Any]) -> Dict[str, str]:
 
 def lmstudio_extract(stt_text: str) -> Dict[str, Any]:
     """Ask the configured LLM provider to convert transcript text into JSON."""
-    if not OPENROUTER_API_KEY:
-        log.warning("STT semantic extraction skipped: missing OpenRouter/Qwen API key")
+    if not LLM_API_KEY:
+        log.warning(
+            "STT semantic extraction skipped: missing API key. "
+            "Set OPENAI_API_KEY or OPENROUTER_API_KEY or QWEN_API_KEY in the environment."
+        )
         return {}
 
     log.info(
         "STT semantic extraction provider=%s model=%s",
         LLM_PROVIDER,
-        QWEN_MODEL,
+        LLM_MODEL,
     )
 
     system_prompt = """
@@ -175,7 +178,7 @@ Rules:
 """.strip()
 
     payload = {
-        "model": QWEN_MODEL,
+        "model": LLM_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -185,12 +188,12 @@ Rules:
         "max_tokens": 260,
     }
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json",
     }
-    if OPENROUTER_REFERER:
+    if LLM_PROVIDER == "openrouter" and OPENROUTER_REFERER:
         headers["HTTP-Referer"] = OPENROUTER_REFERER
-    if OPENROUTER_TITLE:
+    if LLM_PROVIDER == "openrouter" and OPENROUTER_TITLE:
         headers["X-Title"] = OPENROUTER_TITLE
 
     try:
@@ -219,8 +222,11 @@ Rules:
         sanitized = _sanitize_extracted_fields(parsed)
         log.info("STT parsed JSON fields: %s", sanitized)
         return sanitized
+    except requests.RequestException as exc:
+        log.warning("STT semantic extraction request failed: %s", exc)
+        return {}
     except Exception as exc:
-        log.warning("STT semantic extraction failed: %r", exc)
+        log.warning("STT semantic extraction failed: %s", exc)
         return {}
 
 

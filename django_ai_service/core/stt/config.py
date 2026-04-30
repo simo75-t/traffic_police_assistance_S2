@@ -1,7 +1,7 @@
 """STT configuration values.
 
-This module preserves the legacy names the STT pipeline imports while also
-supporting newer env names that were introduced for OpenRouter/Qwen.
+This module preserves legacy names while preferring explicit OpenAI/OpenRouter
+environment variables for semantic extraction.
 """
 
 import logging
@@ -82,14 +82,14 @@ WHISPER_MODEL_NAME = get_runtime_setting("WHISPER_MODEL_NAME", default_settings.
 WHISPER_LANGUAGE = get_runtime_setting("WHISPER_LANGUAGE", default_settings.WHISPER_LANGUAGE)
 whisper_model = whisper.load_model(WHISPER_MODEL_NAME)
 
+OPENAI_API_KEY = str(get_runtime_setting("OPENAI_API_KEY") or "").strip()
+OPENAI_BASE_URL = str(get_runtime_setting("OPENAI_BASE_URL", default_settings.OPENAI_BASE_URL)).rstrip("/")
+OPENAI_MODEL = str(get_runtime_setting("OPENAI_MODEL", default_settings.OPENAI_MODEL)).strip()
+
 QWEN_MODEL = str(get_runtime_setting("QWEN_MODEL", default_settings.QWEN_MODEL)).strip()
-OPENROUTER_API_KEY = str(
-    get_runtime_setting(
-        "OPENROUTER_API_KEY",
-        get_runtime_setting("QWEN_API_KEY", ""),
-    )
-    or ""
-).strip()
+OPENROUTER_API_KEY = str(get_runtime_setting("OPENROUTER_API_KEY") or "").strip()
+if not OPENROUTER_API_KEY:
+    OPENROUTER_API_KEY = str(get_runtime_setting("QWEN_API_KEY") or "").strip()
 OPENROUTER_BASE_URL = str(
     get_runtime_setting(
         "OPENROUTER_BASE_URL",
@@ -111,18 +111,27 @@ LLM_TIMEOUT = float(
         float,
     )
 )
-LLM_PROVIDER = (
-    "openrouter"
-    if "openrouter" in QWEN_MODEL.lower() or "openrouter" in OPENROUTER_BASE_URL.lower()
-    else "generic"
-)
-LLM_CHAT_URL = f"{OPENROUTER_BASE_URL}/chat/completions"
+if OPENAI_API_KEY:
+    LLM_PROVIDER = "openai"
+    LLM_API_KEY = OPENAI_API_KEY
+    LLM_MODEL = OPENAI_MODEL
+    LLM_CHAT_URL = f"{OPENAI_BASE_URL}/chat/completions"
+elif OPENROUTER_API_KEY:
+    LLM_PROVIDER = "openrouter"
+    LLM_API_KEY = OPENROUTER_API_KEY
+    LLM_MODEL = QWEN_MODEL
+    LLM_CHAT_URL = f"{OPENROUTER_BASE_URL}/chat/completions"
+else:
+    LLM_PROVIDER = "unconfigured"
+    LLM_API_KEY = ""
+    LLM_MODEL = OPENAI_MODEL or QWEN_MODEL
+    LLM_CHAT_URL = f"{OPENAI_BASE_URL}/chat/completions"
 
 # Backward-compatible aliases for any remaining imports.
 RABBITMQ_URL = _rabbitmq_url or f"amqp://{RABBIT_USER}:{RABBIT_PASS}@{RABBIT_HOST}:{RABBIT_PORT}{RABBIT_VHOST}"
 AI_QUEUE_STT = STT_QUEUE
 AI_ROUTING_KEY_STT = STT_ROUTING_KEY
 AI_RESULT_QUEUE = RESULT_ROUTING_KEY
-LMSTUDIO_MODEL = QWEN_MODEL
+LMSTUDIO_MODEL = LLM_MODEL
 LMSTUDIO_CHAT = LLM_CHAT_URL
 LMSTUDIO_TIMEOUT = LLM_TIMEOUT

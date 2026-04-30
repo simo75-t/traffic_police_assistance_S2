@@ -95,102 +95,13 @@ Needed for the current AI flow:
 - LM Studio for STT structuring
 - A configured LLM provider for heatmap prediction if you want prediction generation to work
 
-## Environment Notes
+## Local Configuration
 
-### Laravel environment
+This repository does not document or commit local `.env` contents, secrets, tokens, or machine-specific service URLs.
 
-The Laravel folder currently contains `.env` but does not include a tracked `.env.example` in this repository snapshot. For a fresh machine, create `Traffic_Police_assistant/.env` manually or copy it from a trusted local source.
-
-Important values used by the current codebase include:
-
-```env
-APP_NAME="Traffic Police Assistance"
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://127.0.0.1:8000
-
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=traffic_police_assistant
-DB_USERNAME=your_db_user
-DB_PASSWORD=your_db_password
-
-QUEUE_CONNECTION=rabbitmq
-RABBITMQ_HOST=127.0.0.1
-RABBITMQ_PORT=5672
-RABBITMQ_USER=your_rabbit_user
-RABBITMQ_PASSWORD=your_rabbit_password
-RABBITMQ_VHOST=/
-
-AI_RMQ_EXCHANGE=ai.exchange
-AI_RMQ_OCR_QUEUE=ai.ocr.jobs
-AI_RMQ_STT_QUEUE=ai.stt.jobs
-AI_RMQ_HEATMAP_QUEUE=ai.heatmap.jobs
-AI_RMQ_HEATMAP_PREDICTION_QUEUE=ai.heatmap.prediction.jobs
-AI_RMQ_RESULTS_QUEUE=ai.results
-
-AI_RMQ_OCR_ROUTING_KEY=job.ocr.create
-AI_RMQ_STT_ROUTING_KEY=job.stt.create
-AI_RMQ_HEATMAP_ROUTING_KEY=analytics.generate_heatmap
-AI_RMQ_HEATMAP_PREDICTION_ROUTING_KEY=heatmap.prediction.request
-AI_RMQ_RESULTS_ROUTING_KEY=job.result
-```
-
-### Django environment
-
-The Django service includes `django_ai_service/.env.example`. Copy it to `.env` and replace the placeholder values with your real local configuration.
-
-Important variables include:
-
-```env
-RABBITMQ_HOST=127.0.0.1
-RABBITMQ_PORT=5672
-RABBITMQ_USER=your_rabbit_user
-RABBITMQ_PASSWORD=your_rabbit_password
-RABBITMQ_VHOST=/
-
-AI_RMQ_EXCHANGE=ai.exchange
-AI_RMQ_RESULTS_ROUTING_KEY=job.result
-AI_RMQ_STT_QUEUE=ai.stt.jobs
-AI_RMQ_STT_ROUTING_KEY=job.stt.create
-AI_RMQ_OCR_QUEUE=ai.ocr.jobs
-AI_RMQ_OCR_ROUTING_KEY=job.ocr.create
-AI_RMQ_HEATMAP_QUEUE=ai.heatmap.jobs
-AI_RMQ_HEATMAP_ROUTING_KEY=analytics.generate_heatmap
-
-AI_RMQ_HEATMAP_PREDICTION_QUEUE=ai.heatmap.prediction.jobs
-AI_RMQ_HEATMAP_PREDICTION_ROUTING_KEY=heatmap.prediction.request
-
-LARAVEL_BASE_URL=http://127.0.0.1:8000
-LARAVEL_API_PREFIX=/api
-
-MONGO_URL=mongodb://127.0.0.1:27017
-MONGO_DB=ai_service
-MONGO_OCR_COLLECTION=plate_ocr_results
-
-OLLAMA_URL=http://127.0.0.1:11434/api/generate
-OLLAMA_MODEL=qwen2.5vl:3b
-
-LMSTUDIO_BASE_URL=http://127.0.0.1:1234
-LMSTUDIO_MODEL=mistralai/mistral-7b-instruct-v0.3
-
-HEATMAP_PREDICTION_LLM_PROVIDER=your_provider
-```
-
-Do not keep real secrets or API keys in committed example files.
-
-### Flutter environment
-
-The Flutter app does not currently read its backend URL from environment variables. It uses a hard-coded base URL in `POLICEapp/lib/config.dart`.
-
-Current code:
-
-```dart
-static const String baseUrl = "http://192.168.0.119:8000/api";
-```
-
-If you run on another machine, emulator, or physical device, update that value before testing.
+- Create the required local configuration files manually on each machine.
+- Keep API keys and credentials out of Git history.
+- Adjust local backend or device URLs in your private setup before testing.
 
 ## Setup And Run
 

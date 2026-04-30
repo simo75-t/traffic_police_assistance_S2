@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
         predictionResult: null,
         map: null,
         mapLayerGroup: null,
+        activeMarker: null,
         renderedPoints: [],
         markerByCellId: {},
         timer: null,
@@ -637,6 +638,39 @@ document.addEventListener('DOMContentLoaded', function () {
         return '#1f9d55';
     }
 
+    function blobSizeForRatio(ratio) {
+        return 28 + Math.round(Math.max(0.16, ratio) * 26);
+    }
+
+    function hexToRgba(hex, alpha) {
+        const value = String(hex || '').replace('#', '');
+        const normalized = value.length === 3
+            ? value.split('').map(function (char) { return char + char; }).join('')
+            : value;
+
+        const red = parseInt(normalized.slice(0, 2), 16);
+        const green = parseInt(normalized.slice(2, 4), 16);
+        const blue = parseInt(normalized.slice(4, 6), 16);
+
+        return 'rgba(' + red + ',' + green + ',' + blue + ',' + alpha + ')';
+    }
+
+    function buildBlobIcon(ratio) {
+        const size = blobSizeForRatio(ratio);
+        const color = colorForRatio(ratio);
+        const coreColor = hexToRgba(color, 0.92);
+        const midColor = hexToRgba(color, 0.52);
+        const glowColor = hexToRgba(color, 0.28);
+
+        return window.L.divIcon({
+            className: 'heat-blob-marker',
+            html: '<span class="heat-blob-marker__spot" style="width:' + size + 'px;height:' + size + 'px;--blob-color:' + escapeHtml(color) + ';--blob-core:' + escapeHtml(coreColor) + ';--blob-mid:' + escapeHtml(midColor) + ';--blob-glow:' + escapeHtml(glowColor) + ';"></span>',
+            iconSize: [size, size],
+            iconAnchor: [Math.round(size / 2), Math.round(size / 2)],
+            popupAnchor: [0, -Math.round(size / 2)],
+        });
+    }
+
     function buildPopup(point) {
         return '<div class="heatmap-map-popup"><strong>' + escapeHtml(displayAreaLabel(point)) + '</strong></div>';
     }
@@ -645,6 +679,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const point = points[index];
 
         if (!point) {
+            if (state.activeMarker) {
+                state.mapLayerGroup.removeLayer(state.activeMarker);
+                state.activeMarker = null;
+            }
             resetDetails();
             return;
         }
@@ -657,6 +695,24 @@ document.addEventListener('DOMContentLoaded', function () {
         if (nodes.detailLng) nodes.detailLng.textContent = Number.isFinite(Number(point.lng)) ? Number(point.lng).toFixed(6) : '-';
         if (nodes.detailIntensity) nodes.detailIntensity.textContent = Math.round(intensity * 100) + '%';
         if (nodes.detailRisk) nodes.detailRisk.textContent = translateRiskLevel(estimateRiskLevelFromIntensity(intensity));
+
+        if (state.map && state.mapLayerGroup) {
+            if (state.activeMarker) {
+                state.mapLayerGroup.removeLayer(state.activeMarker);
+            }
+
+            state.activeMarker = window.L.circleMarker([Number(point.lat), Number(point.lng)], {
+                radius: 8,
+                stroke: true,
+                weight: 3,
+                color: '#ffffff',
+                fillColor: colorForRatio(intensity),
+                fillOpacity: 0.95,
+                interactive: false,
+            });
+
+            state.activeMarker.addTo(state.mapLayerGroup);
+        }
     }
 
     function focusPointByCellId(cellId) {
@@ -756,6 +812,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         hideFeedback();
         state.mapLayerGroup.clearLayers();
+        state.activeMarker = null;
         state.renderedPoints = [];
         state.markerByCellId = {};
 
@@ -791,14 +848,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const point = entry.point;
             const relativeRatio = (entry.ratio - significant.threshold) / Math.max(1 - significant.threshold, 0.001);
             const ratio = Math.max(0.16, Math.pow(Math.max(relativeRatio, 0), 0.65));
-            const marker = window.L.circleMarker([Number(point.lat), Number(point.lng)], {
-                radius: 6 + Math.round(ratio * 7),
-                stroke: true,
-                weight: 2,
-                color: '#ffffff',
-                fillColor: colorForRatio(ratio),
-                fillOpacity: 0.82,
+            const marker = window.L.marker([Number(point.lat), Number(point.lng)], {
+                icon: buildBlobIcon(ratio),
                 interactive: true,
+                keyboard: false,
             }).bindPopup(buildPopup(point));
 
             marker.on('click', function () {

@@ -17,6 +17,10 @@ django_ai_service/test_results.txt
 # Local environment
 .env
 .env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 
 # Editor / system files
 .vscode/
@@ -27,10 +31,10 @@ Thumbs.db
 node_modules/
 vendor/
 public/build/
+POLICEapp/android/build/
+Traffic_Police_assistant/public/uploads/audio/
+Traffic_Police_assistant/public/uploads/reports/
 
 # Ignore workspace plan file
 SYSTEM_LEARNING_AND_TEST_PLAN.txt
-
-# Ignore local duplicate Laravel workspace
-Traffic_Police_assistant/
 

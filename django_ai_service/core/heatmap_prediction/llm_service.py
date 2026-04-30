@@ -9,7 +9,11 @@ from requests import exceptions as requests_exceptions
 
 from core import default_settings
 from core.heatmap_prediction.fallbacks import build_fallback_prediction
-from core.heatmap_prediction.providers import FALLBACK_PROVIDER_NAMES, QWEN_PROVIDER_NAME
+from core.heatmap_prediction.providers import (
+    FALLBACK_PROVIDER_NAMES,
+    OPENAI_PROVIDER_NAME,
+    QWEN_PROVIDER_NAME,
+)
 from core.heatmap_prediction.schema import PredictionSchemaError
 from core.heatmap_prediction.schema import validate_prediction_output
 from core.runtime_settings import get_runtime_setting
@@ -119,12 +123,55 @@ def _provider() -> str:
     ).strip().lower()
 
 
+def _configured_provider_or_fallback() -> str:
+    provider = _provider()
+
+    if provider == OPENAI_PROVIDER_NAME and not _openai_api_key():
+        log.warning("OpenAI provider configured without OPENAI_API_KEY; using fallback provider instead")
+        return "fallback"
+
+    if provider == QWEN_PROVIDER_NAME and not _provider_api_key():
+        log.warning("Qwen provider configured without API key; using fallback provider instead")
+        return "fallback"
+
+    if provider == "ollama" and (not _ollama_url() or not _ollama_model()):
+        log.warning("Ollama provider configured without URL or model; using fallback provider instead")
+        return "fallback"
+
+    return provider
+
+
 def current_provider() -> str:
-    return _provider()
+    return _configured_provider_or_fallback()
 
 
-def _qwen_api_key() -> str:
-    return str(get_runtime_setting("QWEN_API_KEY", default_settings.QWEN_API_KEY) or "").strip()
+def _openai_api_key() -> str:
+    return str(get_runtime_setting("OPENAI_API_KEY") or "").strip()
+
+
+def _openai_base_url() -> str:
+    return str(get_runtime_setting("OPENAI_BASE_URL", default_settings.OPENAI_BASE_URL)).rstrip("/")
+
+
+def _openai_model() -> str:
+    return str(get_runtime_setting("OPENAI_MODEL", default_settings.OPENAI_MODEL)).strip()
+
+
+def _openai_timeout_seconds() -> int:
+    return max(
+        5,
+        get_runtime_setting("OPENAI_TIMEOUT_SECONDS", default_settings.OPENAI_TIMEOUT_SECONDS, int),
+    )
+
+
+def _provider_api_key() -> str:
+    primary = str(get_runtime_setting("OPENAI_API_KEY") or "").strip()
+    if primary:
+        return primary
+    primary = str(get_runtime_setting("OPENROUTER_API_KEY") or "").strip()
+    if primary:
+        return primary
+    return str(get_runtime_setting("QWEN_API_KEY") or "").strip()
 
 
 def _qwen_base_url() -> str:
@@ -494,9 +541,11 @@ def _call_openai_compatible_api(
 
 
 def generate_qwen_recommendations(signal_summary: dict[str, Any]) -> dict[str, Any]:
-    api_key = _qwen_api_key()
+    api_key = _provider_api_key()
     if not api_key:
-        raise PredictionLlmConnectionError("Qwen API key is not configured")
+        raise PredictionLlmConnectionError(
+            "LLM API key is missing. Set OPENAI_API_KEY or OPENROUTER_API_KEY or QWEN_API_KEY in the environment."
+        )
 
     endpoint_url = f"{_qwen_base_url()}/chat/completions"
 
@@ -506,6 +555,27 @@ def generate_qwen_recommendations(signal_summary: dict[str, Any]) -> dict[str, A
         model_name=_qwen_model(),
         api_key=api_key,
         timeout_seconds=_qwen_timeout_seconds(),
+        max_tokens=_qwen_max_tokens(),
+        temperature=_qwen_temperature(),
+        prompt=_build_prompt(signal_summary),
+    )
+
+
+def generate_openai_recommendations(signal_summary: dict[str, Any]) -> dict[str, Any]:
+    api_key = _openai_api_key()
+    if not api_key:
+        raise PredictionLlmConnectionError(
+            "OpenAI API key is missing. Set OPENAI_API_KEY in the environment."
+        )
+
+    endpoint_url = f"{_openai_base_url()}/chat/completions"
+
+    return _call_openai_compatible_api(
+        provider_name=OPENAI_PROVIDER_NAME,
+        endpoint_url=endpoint_url,
+        model_name=_openai_model(),
+        api_key=api_key,
+        timeout_seconds=_openai_timeout_seconds(),
         max_tokens=_qwen_max_tokens(),
         temperature=_qwen_temperature(),
         prompt=_build_prompt(signal_summary),
@@ -617,11 +687,14 @@ def generate_ollama_recommendations(signal_summary: dict[str, Any]) -> dict[str,
 
 
 def generate_recommendations(signal_summary: dict[str, Any]) -> dict[str, Any]:
-    provider = _provider()
+    provider = _configured_provider_or_fallback()
     log.info("Prediction provider selected provider=%s", provider)
 
     if provider in FALLBACK_PROVIDER_NAMES:
         return build_fallback_prediction(signal_summary)
+
+    if provider == OPENAI_PROVIDER_NAME:
+        return generate_openai_recommendations(signal_summary)
 
     if provider == QWEN_PROVIDER_NAME:
         return generate_qwen_recommendations(signal_summary)

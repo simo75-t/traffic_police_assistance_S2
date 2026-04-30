@@ -5,9 +5,7 @@
 @section('content')
     <link
         rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin=""
+        href="{{ asset('vendor/leaflet/leaflet.css') }}"
     >
     <link rel="stylesheet" href="{{ asset('pm-assets/heatmap.css') }}">
 
@@ -292,9 +290,7 @@
     </div>
 
     <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""
+        src="{{ asset('vendor/leaflet/leaflet.js') }}"
     ></script>
     <script src="{{ asset('pm-assets/heatmap.js') }}"></script>
 @endsection

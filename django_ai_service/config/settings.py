@@ -176,6 +176,10 @@ HEATMAP_PREDICTION_LLM_PROVIDER = os.getenv(
     "HEATMAP_PREDICTION_LLM_PROVIDER",
     default_settings.HEATMAP_PREDICTION_LLM_PROVIDER,
 )
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", default_settings.OPENAI_API_KEY)
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", default_settings.OPENAI_BASE_URL)
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", default_settings.OPENAI_MODEL)
+OPENAI_TIMEOUT_SECONDS = int(os.getenv("OPENAI_TIMEOUT_SECONDS", str(default_settings.OPENAI_TIMEOUT_SECONDS)))
 QWEN_API_KEY = os.getenv("QWEN_API_KEY", default_settings.QWEN_API_KEY)
 QWEN_BASE_URL = os.getenv("QWEN_BASE_URL", default_settings.QWEN_BASE_URL)
 QWEN_MODEL = os.getenv("QWEN_MODEL", default_settings.QWEN_MODEL)
