@@ -873,7 +873,7 @@
             searchResults.innerHTML = '';
 
             try {
-                const response = await fetch(`/api/search-violations?plate=${encodeURIComponent(plate)}`, {
+                const response = await fetch(`{{ route('citizen.violations') }}?plate=${encodeURIComponent(plate)}`, {
                     headers: { 'Accept': 'application/json' },
                 });
 
@@ -884,7 +884,6 @@
                 }
 
                 renderSearchResults(payload.data || []);
-                setStatus(searchStatus, 'success', 'تم العثور على النتائج أو لم يتم العثور على نتيجة مطابقة.');
             } catch (error) {
                 setStatus(searchStatus, 'error', error.message);
             } finally {
